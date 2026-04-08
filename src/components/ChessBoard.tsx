@@ -8,7 +8,7 @@ import type * as cg from "chessground/types";
 import { io, type Socket } from "socket.io-client";
 import { getLegalDests, getPromotion } from "@/lib/chess";
 import { getOrCreatePlayerId } from "@/lib/player";
-import type { ClientToServerEvents, GameState, ServerToClientEvents } from "@/types/game";
+import type { ClientToServerEvents, GameState, PlayerColor, ServerToClientEvents } from "@/types/game";
 
 type Props = {
   gameId: string;
@@ -32,6 +32,10 @@ export function ChessBoard({ gameId }: Props) {
     if (typeof window === "undefined") return "";
     return `${window.location.origin}/game/${gameId}`;
   }, [gameId]);
+
+  const canInteractWithBoard = Boolean(
+    state && state.playerColor !== "spectator" && !(state.mode === "vs-bot" && state.isBotThinking),
+  );
 
   useEffect(() => {
     const playerId = getOrCreatePlayerId();
@@ -96,7 +100,7 @@ export function ChessBoard({ gameId }: Props) {
       },
       movable: {
         free: false,
-        color: state.playerColor === "spectator" ? undefined : state.playerColor,
+        color: getMovableColor(state, canInteractWithBoard),
         dests: getLegalDests(state.fen),
         showDests: true,
         events: {
@@ -104,7 +108,7 @@ export function ChessBoard({ gameId }: Props) {
         },
       },
       premovable: {
-        enabled: state.playerColor !== "spectator",
+        enabled: canInteractWithBoard,
         showDests: true,
         castle: true,
         events: {
@@ -130,7 +134,7 @@ export function ChessBoard({ gameId }: Props) {
     }
 
     chessgroundRef.current.set(config);
-  }, [gameId, state]);
+  }, [canInteractWithBoard, gameId, state]);
 
   useEffect(() => {
     if (!state || !pendingPremove || state.playerColor !== state.turn) return;
@@ -176,10 +180,11 @@ export function ChessBoard({ gameId }: Props) {
 
         <div className="status-grid">
           <span>{status}</span>
+          <span>Modo: {state ? modeLabel(state.mode) : "..."}</span>
           <span>Você: {state ? roleLabel(state.playerColor) : "..."}</span>
           <span>{state?.connected ? "Conectado" : "Desconectado"}</span>
           <span>Brancas: {state?.players.white ? "online/ocupado" : "aguardando"}</span>
-          <span>Pretas: {state?.players.black ? "online/ocupado" : "aguardando"}</span>
+          <span>{blackPlayerLabel(state)}</span>
         </div>
 
         {error ? <p className="error">{error}</p> : null}
@@ -205,9 +210,27 @@ function roleLabel(role: GameState["playerColor"]) {
   return "espectador";
 }
 
+function getMovableColor(state: GameState, canInteractWithBoard: boolean): PlayerColor | undefined {
+  if (!canInteractWithBoard) return undefined;
+  if (state.playerColor === "spectator") return undefined;
+  return state.playerColor;
+}
+
+function modeLabel(mode: GameState["mode"]) {
+  if (mode === "vs-bot") return "contra Stockfish";
+  return "online";
+}
+
+function blackPlayerLabel(state: GameState | null) {
+  if (!state) return "Pretas: ...";
+  if (state.mode === "vs-bot") return "Pretas: Stockfish";
+  return `Pretas: ${state.players.black ? "online/ocupado" : "aguardando"}`;
+}
+
 function getStatusText(state: GameState) {
   if (state.isCheckmate) return `Xeque-mate. Vitória das ${state.turn === "white" ? "pretas" : "brancas"}.`;
   if (state.isDraw) return "Partida empatada.";
+  if (state.mode === "vs-bot" && state.isBotThinking) return "Stockfish está pensando...";
   if (state.isCheck) return `Xeque nas ${state.turn === "white" ? "brancas" : "pretas"}.`;
   return `Vez das ${state.turn === "white" ? "brancas" : "pretas"}.`;
 }

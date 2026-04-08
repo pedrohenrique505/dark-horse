@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage } from "node:http";
 import next from "next";
 import { Chess, type Move } from "chess.js";
 import { Server } from "socket.io";
+import { getBestMove } from "./services/stockfish";
 import type {
   ClientToServerEvents,
   CreateGameRequest,
@@ -164,6 +165,11 @@ io.on("connection", (socket) => {
       return;
     }
 
+    if (room.isBotThinking) {
+      socket.emit("move-rejected", { reason: "Aguarde a resposta do Stockfish." });
+      return;
+    }
+
     if (room.chess.turn() !== (color === "white" ? "w" : "b")) {
       socket.emit("move-rejected", { reason: "Ainda não é a sua vez." });
       return;
@@ -172,6 +178,14 @@ io.on("connection", (socket) => {
     try {
       const move: Move = room.chess.move({ from, to, promotion });
       if (!move) throw new Error("Jogada inválida.");
+
+      if (shouldBotPlay(room)) {
+        room.isBotThinking = true;
+        emitRoomState(io, room);
+        void playBotMove(io, room, playerId);
+        return;
+      }
+
       emitRoomState(io, room);
     } catch {
       socket.emit("move-rejected", { reason: "Jogada ilegal rejeitada pelo servidor." });
@@ -204,4 +218,51 @@ async function readJson<T>(req: IncomingMessage): Promise<T> {
 
   const body = Buffer.concat(chunks).toString("utf8");
   return JSON.parse(body) as T;
+}
+
+function shouldBotPlay(room: GameRoom): boolean {
+  return room.mode === "vs-bot" && !room.chess.isGameOver() && room.chess.turn() === "b";
+}
+
+async function playBotMove(
+  io: Server<ClientToServerEvents, ServerToClientEvents>,
+  room: GameRoom,
+  playerId: string,
+) {
+  try {
+    const bestMove = await getBestMove(room.chess.fen());
+
+    if (!bestMove) {
+      return;
+    }
+
+    const move = room.chess.move(bestMove);
+    if (!move) {
+      throw new Error("Stockfish retornou uma jogada inválida.");
+    }
+  } catch (error) {
+    console.error("Erro ao pedir jogada do Stockfish:", error);
+    const socket = findSocketByPlayer(io, room.id, playerId);
+    socket?.emit("move-rejected", { reason: "Não foi possível obter a resposta do Stockfish." });
+  } finally {
+    room.isBotThinking = false;
+    emitRoomState(io, room);
+  }
+}
+
+function findSocketByPlayer(
+  io: Server<ClientToServerEvents, ServerToClientEvents>,
+  gameId: string,
+  playerId: string,
+) {
+  const sockets = io.sockets.adapter.rooms.get(gameId);
+  if (!sockets) return null;
+
+  for (const socketId of sockets) {
+    const session = socketSessions.get(socketId);
+    const socket = io.sockets.sockets.get(socketId);
+    if (session?.playerId === playerId && socket) return socket;
+  }
+
+  return null;
 }
