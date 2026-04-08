@@ -7,9 +7,17 @@ import type { Api } from "chessground/api";
 import type { Config } from "chessground/config";
 import type * as cg from "chessground/types";
 import { io, type Socket } from "socket.io-client";
+import { Chess } from "chess.js";
 import { getLegalDests, getPromotion } from "@/lib/chess";
 import { getOrCreatePlayerId } from "@/lib/player";
-import type { ClientToServerEvents, GameResult, GameState, PlayerColor, ServerToClientEvents } from "@/types/game";
+import type {
+  ClientToServerEvents,
+  GameResult,
+  GameState,
+  MoveHistoryEntry,
+  PlayerColor,
+  ServerToClientEvents,
+} from "@/types/game";
 
 type Props = {
   gameId: string;
@@ -35,6 +43,7 @@ export function ChessBoard({ gameId }: Props) {
   const [isDrawOfferPopupOpen, setIsDrawOfferPopupOpen] = useState(false);
   const [drawFeedback, setDrawFeedback] = useState<string | null>(null);
   const [boardSize, setBoardSize] = useState<number | null>(null);
+  const [viewedPly, setViewedPly] = useState(0);
   const audioContextRef = useRef<AudioContext | null>(null);
   const previousStateRef = useRef<GameState | null>(null);
 
@@ -47,6 +56,7 @@ export function ChessBoard({ gameId }: Props) {
     state &&
       state.playerColor !== "spectator" &&
       !state.isGameOver &&
+      viewedPly === state.moveHistory.length &&
       !(state.mode === "vs-bot" && state.isBotThinking),
   );
 
@@ -79,6 +89,9 @@ export function ChessBoard({ gameId }: Props) {
   const boardOrientation = state?.playerColor === "black" ? "black" : "white";
   const topPlayer = getBoardSideLabel(state, boardOrientation === "white" ? "black" : "white");
   const bottomPlayer = getBoardSideLabel(state, boardOrientation);
+  const displayedPosition = getDisplayedPosition(state, viewedPly);
+  const isViewingLivePosition = viewedPly === (state?.moveHistory.length ?? 0);
+  const moveRows = groupMoveHistory(state?.moveHistory ?? []);
 
   useEffect(() => {
     const playerId = getOrCreatePlayerId();
@@ -100,6 +113,13 @@ export function ChessBoard({ gameId }: Props) {
       const previousState = previousStateRef.current;
       setState(nextState);
       setError(null);
+      const previousMoveCount = previousState?.moveHistory.length ?? 0;
+      const nextMoveCount = nextState.moveHistory.length;
+
+      if (!previousState || nextMoveCount !== previousMoveCount) {
+        setViewedPly(nextMoveCount);
+      }
+
       if (nextState.isGameOver && nextState.result) {
         setIsResultModalOpen(true);
         setIsDrawOfferPopupOpen(false);
@@ -172,11 +192,11 @@ export function ChessBoard({ gameId }: Props) {
     };
 
     const config: Config = {
-      fen: state.fen,
+      fen: displayedPosition.fen,
       orientation: boardOrientation,
-      turnColor: state.turn,
-      check: state.isCheck,
-      lastMove: state.lastMove as cg.Key[] | undefined,
+      turnColor: displayedPosition.turn,
+      check: displayedPosition.isCheck,
+      lastMove: displayedPosition.lastMove,
       coordinates: true,
       highlight: {
         lastMove: true,
@@ -185,7 +205,7 @@ export function ChessBoard({ gameId }: Props) {
       movable: {
         free: false,
         color: getMovableColor(state, canInteractWithBoard),
-        dests: getLegalDests(state.fen),
+        dests: getLegalDests(displayedPosition.fen),
         showDests: true,
         events: {
           after: onMove,
@@ -218,7 +238,7 @@ export function ChessBoard({ gameId }: Props) {
     }
 
     chessgroundRef.current.set(config);
-  }, [boardOrientation, canInteractWithBoard, gameId, state]);
+  }, [boardOrientation, canInteractWithBoard, displayedPosition, gameId, state]);
 
   useEffect(() => {
     if (!state || !pendingPremove || state.playerColor !== state.turn) return;
@@ -361,6 +381,34 @@ export function ChessBoard({ gameId }: Props) {
                 Pedir empate
               </button>
             ) : null}
+
+            <section className="history-panel">
+              <p className="history-title">Histórico</p>
+              <div className="history-nav">
+                <button type="button" onClick={() => setViewedPly((current) => Math.max(0, current - 1))} disabled={viewedPly === 0}>
+                  Voltar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewedPly((current) => Math.min(state?.moveHistory.length ?? 0, current + 1))}
+                  disabled={!state || viewedPly === state.moveHistory.length}
+                >
+                  Avançar
+                </button>
+              </div>
+              <p className="history-status">
+                {isViewingLivePosition ? "Posição atual" : `Visualizando o lance ${viewedPly}`}
+              </p>
+              <div className="history-list">
+                {moveRows.length === 0 ? (
+                  <p className="history-empty">Nenhum lance ainda.</p>
+                ) : (
+                  moveRows.map((row) => (
+                    <HistoryRow key={row.moveNumber} row={row} viewedPly={viewedPly} onSelectPly={setViewedPly} />
+                  ))
+                )}
+              </div>
+            </section>
           </aside>
         </div>
       </section>
@@ -457,6 +505,92 @@ function getBoardSideLabel(state: GameState | null, color: PlayerColor) {
   }
 
   return color === "white" ? "Player 1" : "Player 2";
+}
+
+function getDisplayedPosition(state: GameState | null, viewedPly: number) {
+  if (!state) {
+    return {
+      fen: "",
+      turn: "white" as PlayerColor,
+      isCheck: false,
+      lastMove: undefined as cg.Key[] | undefined,
+    };
+  }
+
+  const moveHistory = state.moveHistory;
+  const selectedMove = viewedPly > 0 ? moveHistory[viewedPly - 1] : null;
+  const fen = selectedMove ? selectedMove.afterFen : moveHistory[0]?.beforeFen ?? state.fen;
+  const chess = new Chess(fen);
+
+  return {
+    fen,
+    turn: fen.includes(" w ") ? "white" as PlayerColor : "black" as PlayerColor,
+    isCheck: chess.isCheck(),
+    lastMove: selectedMove ? [selectedMove.from, selectedMove.to] as cg.Key[] : undefined,
+  };
+}
+
+function groupMoveHistory(moveHistory: MoveHistoryEntry[]) {
+  const rows: Array<{
+    moveNumber: number;
+    white: MoveHistoryEntry;
+    black?: MoveHistoryEntry;
+  }> = [];
+
+  for (let index = 0; index < moveHistory.length; index += 2) {
+    const white = moveHistory[index];
+    if (!white) break;
+
+    rows.push({
+      moveNumber: white.moveNumber,
+      white,
+      black: moveHistory[index + 1],
+    });
+  }
+
+  return rows;
+}
+
+function getHistoryButtonClassName(isActive: boolean) {
+  return isActive ? "history-move history-move-active" : "history-move";
+}
+
+function HistoryRow({
+  row,
+  viewedPly,
+  onSelectPly,
+}: {
+  row: {
+    moveNumber: number;
+    white: MoveHistoryEntry;
+    black?: MoveHistoryEntry;
+  };
+  viewedPly: number;
+  onSelectPly(nextPly: number): void;
+}) {
+  return (
+    <div className="history-row">
+      <span className="history-move-number">{row.moveNumber}.</span>
+      <button
+        type="button"
+        className={getHistoryButtonClassName(viewedPly === row.white.ply)}
+        onClick={() => onSelectPly(row.white.ply)}
+      >
+        {row.white.san}
+      </button>
+      {row.black ? (
+        <button
+          type="button"
+          className={getHistoryButtonClassName(viewedPly === row.black.ply)}
+          onClick={() => onSelectPly(row.black!.ply)}
+        >
+          {row.black.san}
+        </button>
+      ) : (
+        <span />
+      )}
+    </div>
+  );
 }
 
 function playStateSound(
