@@ -9,6 +9,7 @@ import type * as cg from "chessground/types";
 import { io, type Socket } from "socket.io-client";
 import { Chess } from "chess.js";
 import { getLegalDests, getPromotion } from "@/lib/chess";
+import { playConfiguredSound, type GameSoundCache, type GameSoundName } from "@/lib/game-sounds";
 import { getOrCreatePlayerId } from "@/lib/player";
 import type {
   ClientToServerEvents,
@@ -46,6 +47,7 @@ export function ChessBoard({ gameId }: Props) {
   const [boardSize, setBoardSize] = useState<number | null>(null);
   const [viewedPly, setViewedPly] = useState(0);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const soundCacheRef = useRef<GameSoundCache>({});
   const previousStateRef = useRef<GameState | null>(null);
 
   const shareUrl = useMemo(() => {
@@ -90,6 +92,8 @@ export function ChessBoard({ gameId }: Props) {
   const boardOrientation = state?.playerColor === "black" ? "black" : "white";
   const topPlayer = getBoardSideLabel(state, boardOrientation === "white" ? "black" : "white");
   const bottomPlayer = getBoardSideLabel(state, boardOrientation);
+  const topPlayerAvatar = getBoardSideAvatar(state, boardOrientation === "white" ? "black" : "white");
+  const bottomPlayerAvatar = getBoardSideAvatar(state, boardOrientation);
   const displayedPosition = getDisplayedPosition(state, viewedPly);
   const moveRows = groupMoveHistory(state?.moveHistory ?? []);
   const boardFiles = getBoardFiles(boardOrientation);
@@ -158,7 +162,7 @@ export function ChessBoard({ gameId }: Props) {
       if (!nextState.drawOfferFrom) {
         setIsDrawOfferPopupOpen(false);
       }
-      playStateSound(previousState, nextState, audioContextRef);
+      playStateSound(previousState, nextState, audioContextRef, soundCacheRef);
       previousStateRef.current = nextState;
     });
 
@@ -379,7 +383,10 @@ export function ChessBoard({ gameId }: Props) {
 
         <div className="board-layout">
           <div className="board-wrap" style={boardSize ? ({ "--board-size": `${boardSize}px` } as CSSProperties) : undefined}>
-            <p className="board-player board-player-top">{topPlayer}</p>
+            <div className="board-player board-player-top">
+              <img className="board-player-avatar" src={topPlayerAvatar.src} alt={topPlayerAvatar.alt} />
+              <span className="board-player-name">{topPlayer}</span>
+            </div>
             <div className="board-stage">
               <div className="board-frame">
                 <div className="board-files board-files-top" aria-hidden="true">
@@ -411,7 +418,10 @@ export function ChessBoard({ gameId }: Props) {
                 </div>
               </div>
             </div>
-            <p className="board-player board-player-bottom">{bottomPlayer}</p>
+            <div className="board-player board-player-bottom">
+              <img className="board-player-avatar" src={bottomPlayerAvatar.src} alt={bottomPlayerAvatar.alt} />
+              <span className="board-player-name">{bottomPlayer}</span>
+            </div>
           </div>
 
           <aside className="board-side-actions">
@@ -584,6 +594,22 @@ function getBoardSideLabel(state: GameState | null, color: PlayerColor) {
   return color === "white" ? "Player 1" : "Player 2";
 }
 
+function getBoardSideAvatar(state: GameState | null, color: PlayerColor) {
+  if (!state) {
+    return { src: "/avatars/opponent-player.svg", alt: "Avatar do jogador" };
+  }
+
+  if (state.mode === "vs-bot" && state.bot?.humanColor !== color) {
+    return { src: "/avatars/stockfish.svg", alt: "Avatar do Stockfish" };
+  }
+
+  if (state.playerColor === color) {
+    return { src: "/avatars/local-player.svg", alt: "Seu avatar" };
+  }
+
+  return { src: "/avatars/opponent-player.svg", alt: "Avatar do oponente" };
+}
+
 function getBoardFiles(orientation: PlayerColor) {
   const files = ["a", "b", "c", "d", "e", "f", "g", "h"];
   return orientation === "white" ? files : [...files].reverse();
@@ -684,30 +710,60 @@ function playStateSound(
   previousState: GameState | null,
   nextState: GameState,
   audioContextRef: RefObject<AudioContext | null>,
+  soundCacheRef: RefObject<GameSoundCache>,
 ) {
   if (!previousState) return;
   if (previousState.fen === nextState.fen) return;
 
   const isGameOverNow = !previousState.isGameOver && nextState.isGameOver;
   if (isGameOverNow) {
-    playTone(audioContextRef, 520, 0.28, "triangle");
+    playSoundWithFallback(soundCacheRef, "game-end", () => {
+      playTone(audioContextRef, 520, 0.28, "triangle");
+    });
     return;
   }
 
-  const previousPieces = countPieces(previousState.fen);
-  const nextPieces = countPieces(nextState.fen);
-  const isCapture = nextPieces < previousPieces;
+  const lastMove = nextState.moveHistory.at(-1);
+  const soundName = getSoundNameForMove(lastMove?.san ?? "", nextState.isCheck);
+  playSoundWithFallback(soundCacheRef, soundName, () => {
+    if (soundName === "capture") {
+      playTone(audioContextRef, 280, 0.12, "square");
+      return;
+    }
 
-  if (isCapture) {
-    playTone(audioContextRef, 280, 0.12, "square");
-    return;
-  }
+    if (soundName === "check") {
+      playTone(audioContextRef, 560, 0.16, "triangle");
+      return;
+    }
 
-  playTone(audioContextRef, 420, 0.1, "sine");
+    if (soundName === "castle") {
+      playTone(audioContextRef, 460, 0.14, "triangle");
+      return;
+    }
+
+    playTone(audioContextRef, 420, 0.1, "sine");
+  });
 }
 
-function countPieces(fen: string) {
-  return fen.split(" ")[0].replace(/\//g, "").replace(/[1-8]/g, "").length;
+function getSoundNameForMove(san: string, isCheck: boolean): GameSoundName {
+  if (isCheck) return "check";
+  if (san.includes("O-O")) return "castle";
+  if (san.includes("x")) return "capture";
+  return "move";
+}
+
+function playSoundWithFallback(
+  soundCacheRef: RefObject<GameSoundCache>,
+  soundName: GameSoundName,
+  onFallback: () => void,
+) {
+  const cache = soundCacheRef.current;
+  if (!cache) {
+    onFallback();
+    return;
+  }
+
+  playConfiguredSound(cache, soundName, onFallback);
 }
 
 function playTone(
