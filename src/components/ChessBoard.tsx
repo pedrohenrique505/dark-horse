@@ -267,7 +267,7 @@ export function ChessBoard({ gameId }: Props) {
 
   return (
     <main className="page">
-      <section className="panel game-panel">
+      <section className="game-panel">
         <button type="button" className="back-button" onClick={goHome} aria-label="Voltar para home">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path
@@ -314,7 +314,7 @@ export function ChessBoard({ gameId }: Props) {
             <p className="board-player board-player-bottom">{bottomPlayer}</p>
           </div>
 
-          <div className="board-side-actions">
+          <aside className="board-side-actions">
             <button type="button" onClick={() => setIsResignConfirmOpen(true)} disabled={!canResign}>
               Desistir
             </button>
@@ -330,7 +330,7 @@ export function ChessBoard({ gameId }: Props) {
                 Pedir empate
               </button>
             ) : null}
-          </div>
+          </aside>
         </div>
       </section>
 
