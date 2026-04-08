@@ -3,25 +3,39 @@ import initStockfish from "stockfish";
 type StockfishEngine = {
   listener?: (line: string) => void;
   sendCommand(command: string): void;
+  terminate?(): void;
 };
 
-type EngineMove = {
+export type EngineMove = {
   from: string;
   to: string;
   promotion?: "q" | "r" | "b" | "n";
 };
 
+export type StockfishRequest = {
+  fen: string;
+  moveTimeMs: number;
+  skillLevel: number;
+};
+
 let enginePromise: Promise<StockfishEngine> | null = null;
 let queue = Promise.resolve();
 
-export async function getBestMove(fen: string): Promise<EngineMove | null> {
+export async function getBestMove(request: StockfishRequest): Promise<EngineMove | null> {
   return enqueue(async () => {
     const engine = await getEngine();
-    return requestBestMove(engine, fen);
+
+    try {
+      return await requestBestMove(engine, request);
+    } catch (error) {
+      resetEngine(engine);
+      throw error;
+    }
   });
 }
 
 function enqueue<T>(task: () => Promise<T>): Promise<T> {
+  // A engine é compartilhada por todas as partidas. A fila evita misturar respostas.
   const nextTask = queue.then(task, task);
   queue = nextTask.then(
     () => undefined,
@@ -46,23 +60,23 @@ async function createEngine(): Promise<StockfishEngine> {
     engine.sendCommand("uci");
   });
 
-  engine.sendCommand("setoption name Skill Level value 5");
   return engine;
 }
 
-function requestBestMove(engine: StockfishEngine, fen: string): Promise<EngineMove | null> {
+function requestBestMove(engine: StockfishEngine, request: StockfishRequest): Promise<EngineMove | null> {
   return waitForLine(
     engine,
     (line) => line.startsWith("bestmove "),
     () => {
       engine.sendCommand("ucinewgame");
-      engine.sendCommand(`position fen ${fen}`);
+      engine.sendCommand(`setoption name Skill Level value ${request.skillLevel}`);
+      engine.sendCommand(`position fen ${request.fen}`);
       engine.sendCommand("isready");
     },
     {
       onLine(line) {
         if (line === "readyok") {
-          engine.sendCommand("go movetime 250");
+          engine.sendCommand(`go movetime ${request.moveTimeMs}`);
         }
       },
       timeoutMs: 10_000,
@@ -89,14 +103,16 @@ function waitForLine(
     }, timeoutMs);
 
     engine.listener = (line) => {
-      previousListener?.(line);
-      options?.onLine?.(line);
+      const trimmedLine = line.trim();
 
-      if (!matchLine(line)) return;
+      previousListener?.(line);
+      options?.onLine?.(trimmedLine);
+
+      if (!matchLine(trimmedLine)) return;
 
       clearTimeout(timeout);
       engine.listener = previousListener;
-      resolve(line);
+      resolve(trimmedLine);
     };
 
     start();
@@ -108,6 +124,9 @@ function parseBestMove(line: string): EngineMove | null {
   const bestMove = parts[1];
 
   if (!bestMove || bestMove === "(none)") return null;
+  if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(bestMove)) {
+    throw new Error(`Stockfish retornou um bestmove inválido: ${bestMove}`);
+  }
 
   return {
     from: bestMove.slice(0, 2),
@@ -122,4 +141,10 @@ function parsePromotion(value: string): EngineMove["promotion"] {
   }
 
   return undefined;
+}
+
+function resetEngine(engine: StockfishEngine) {
+  engine.listener = undefined;
+  engine.terminate?.();
+  enginePromise = null;
 }

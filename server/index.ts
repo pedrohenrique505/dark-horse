@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage } from "node:http";
 import next from "next";
 import { Chess, type Move } from "chess.js";
 import { Server } from "socket.io";
-import { getBestMove } from "./services/stockfish";
+import { getBestMove, type EngineMove } from "./services/stockfish";
 import type {
   ClientToServerEvents,
   CreateGameRequest,
@@ -20,9 +20,17 @@ type GameRoom = {
   chess: Chess;
   players: PlayerSlots;
   isBotThinking: boolean;
+  nextBotRequestId: number;
+  activeBotRequest: BotRequestContext | null;
 };
 
 const BOT_PLAYER_ID = "stockfish";
+
+type BotRequestContext = {
+  id: number;
+  fen: string;
+  playerId: string;
+};
 
 const dev = process.env.NODE_ENV !== "production";
 const hostname = "0.0.0.0";
@@ -41,6 +49,8 @@ function createGame(mode: GameMode = "pvp"): GameRoom {
     chess: new Chess(),
     players: mode === "vs-bot" ? { black: BOT_PLAYER_ID } : {},
     isBotThinking: false,
+    nextBotRequestId: 0,
+    activeBotRequest: null,
   };
   games.set(id, room);
   return room;
@@ -50,7 +60,15 @@ function getOrCreateGame(id: string): GameRoom {
   const existing = games.get(id);
   if (existing) return existing;
 
-  const room: GameRoom = { id, mode: "pvp", chess: new Chess(), players: {}, isBotThinking: false };
+  const room: GameRoom = {
+    id,
+    mode: "pvp",
+    chess: new Chess(),
+    players: {},
+    isBotThinking: false,
+    nextBotRequestId: 0,
+    activeBotRequest: null,
+  };
   games.set(id, room);
   return room;
 }
@@ -180,9 +198,9 @@ io.on("connection", (socket) => {
       if (!move) throw new Error("Jogada inválida.");
 
       if (shouldBotPlay(room)) {
-        room.isBotThinking = true;
+        const request = startBotRequest(room, playerId);
         emitRoomState(io, room);
-        void playBotMove(io, room, playerId);
+        void playBotMove(io, room.id, request);
         return;
       }
 
@@ -226,27 +244,38 @@ function shouldBotPlay(room: GameRoom): boolean {
 
 async function playBotMove(
   io: Server<ClientToServerEvents, ServerToClientEvents>,
-  room: GameRoom,
-  playerId: string,
+  gameId: string,
+  request: BotRequestContext,
 ) {
   try {
-    const bestMove = await getBestMove(room.chess.fen());
+    const bestMove = await getBestMove({
+      fen: request.fen,
+      moveTimeMs: 250,
+      skillLevel: 5,
+    });
 
     if (!bestMove) {
       return;
     }
 
-    const move = room.chess.move(bestMove);
-    if (!move) {
-      throw new Error("Stockfish retornou uma jogada inválida.");
+    const room = getRoomReadyForBotMove(gameId, request);
+    if (!room) {
+      return;
     }
+
+    applyBotMove(room, bestMove);
   } catch (error) {
     console.error("Erro ao pedir jogada do Stockfish:", error);
-    const socket = findSocketByPlayer(io, room.id, playerId);
+    const socket = findSocketByPlayer(io, gameId, request.playerId);
     socket?.emit("move-rejected", { reason: "Não foi possível obter a resposta do Stockfish." });
   } finally {
-    room.isBotThinking = false;
-    emitRoomState(io, room);
+    const room = games.get(gameId);
+    if (!room) return;
+
+    const didFinishRequest = finishBotRequest(room, request);
+    if (didFinishRequest) {
+      emitRoomState(io, room);
+    }
   }
 }
 
@@ -265,4 +294,48 @@ function findSocketByPlayer(
   }
 
   return null;
+}
+
+function startBotRequest(room: GameRoom, playerId: string): BotRequestContext {
+  const request: BotRequestContext = {
+    id: room.nextBotRequestId + 1,
+    fen: room.chess.fen(),
+    playerId,
+  };
+
+  room.nextBotRequestId = request.id;
+  room.activeBotRequest = request;
+  room.isBotThinking = true;
+  return request;
+}
+
+function finishBotRequest(room: GameRoom, request: BotRequestContext): boolean {
+  if (!isCurrentBotRequest(room, request)) return false;
+
+  room.activeBotRequest = null;
+  room.isBotThinking = false;
+  return true;
+}
+
+function isCurrentBotRequest(room: GameRoom, request: BotRequestContext): boolean {
+  return room.activeBotRequest?.id === request.id;
+}
+
+function getRoomReadyForBotMove(gameId: string, request: BotRequestContext): GameRoom | null {
+  const room = games.get(gameId);
+  if (!room) return null;
+  if (room.mode !== "vs-bot") return null;
+  if (!room.isBotThinking) return null;
+  if (!isCurrentBotRequest(room, request)) return null;
+  if (room.chess.isGameOver()) return null;
+  if (room.chess.turn() !== "b") return null;
+  if (room.chess.fen() !== request.fen) return null;
+  return room;
+}
+
+function applyBotMove(room: GameRoom, move: EngineMove) {
+  const appliedMove = room.chess.move(move);
+  if (!appliedMove) {
+    throw new Error("Stockfish retornou uma jogada inválida para o estado atual.");
+  }
 }
