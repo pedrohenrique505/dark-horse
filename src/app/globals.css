@@ -62,7 +62,7 @@ select {
   display: grid;
   min-height: 100dvh;
   place-items: start center;
-  padding: 2rem;
+  padding: 1rem;
 }
 
 .panel {
@@ -81,13 +81,12 @@ select {
 .game-panel {
   display: flex;
   flex-direction: column;
-  align-items: center;
   position: relative;
   isolation: isolate;
-  width: min(100%, 72rem);
-  min-height: calc(100dvh - 4rem);
-  max-height: calc(100dvh - 4rem);
-  padding: 4.5rem 0 0;
+  width: min(100%, 84rem);
+  min-height: calc(100dvh - 2rem);
+  max-height: calc(100dvh - 2rem);
+  padding: 4rem 0 0;
 }
 
 .eyebrow,
@@ -174,7 +173,8 @@ h1 {
 }
 
 .board-layout {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(11rem, 16vw, 13rem);
   align-items: stretch;
   justify-content: center;
   gap: 1.5rem;
@@ -202,11 +202,10 @@ h1 {
 }
 
 .board-wrap {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 0.5rem;
-  flex: 1;
   min-width: 0;
   min-height: 0;
 }
@@ -217,18 +216,16 @@ h1 {
 }
 
 .board-stage {
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
+  display: grid;
+  place-items: center;
   width: 100%;
+  height: 100%;
   min-height: 0;
-  flex: 1;
+  container-type: size;
 }
 
 .chess-board {
-  width: min(100%, calc(100dvh - 7rem), 44rem);
-  max-width: 44rem;
-  max-height: 100%;
+  width: min(100cqw, 100cqh, 56rem);
   aspect-ratio: 1;
 }
 
@@ -237,8 +234,8 @@ h1 {
   flex-direction: column;
   justify-content: flex-start;
   gap: 0.75rem;
-  flex: 0 0 12rem;
   align-self: center;
+  width: clamp(11rem, 16vw, 13rem);
   border: 1px solid #2a3440;
   border-radius: 1rem;
   background: color-mix(in srgb, var(--panel), transparent 4%);
@@ -322,23 +319,17 @@ h1 {
   }
 
   .board-layout {
-    flex-direction: column;
-    align-items: center;
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr) auto;
     gap: 1rem;
   }
 
-  .board-stage {
-    justify-content: center;
-  }
-
   .chess-board {
-    width: min(100%, calc(100dvh - 9rem), 44rem);
-    max-width: 100%;
+    width: min(100cqw, 100cqh);
   }
 
   .board-side-actions {
     width: 100%;
-    flex: 0 0 auto;
     align-self: stretch;
   }
 
