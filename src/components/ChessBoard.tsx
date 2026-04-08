@@ -23,6 +23,7 @@ type PendingPremove = {
 export function ChessBoard({ gameId }: Props) {
   const router = useRouter();
   const boardRef = useRef<HTMLDivElement | null>(null);
+  const boardStageRef = useRef<HTMLDivElement | null>(null);
   const chessgroundRef = useRef<Api | null>(null);
   const socketRef = useRef<Socket<ServerToClientEvents, ClientToServerEvents> | null>(null);
   const playerIdRef = useRef<string | null>(null);
@@ -33,6 +34,7 @@ export function ChessBoard({ gameId }: Props) {
   const [isResignConfirmOpen, setIsResignConfirmOpen] = useState(false);
   const [isDrawOfferPopupOpen, setIsDrawOfferPopupOpen] = useState(false);
   const [drawFeedback, setDrawFeedback] = useState<string | null>(null);
+  const [boardSize, setBoardSize] = useState<number | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const previousStateRef = useRef<GameState | null>(null);
 
@@ -122,6 +124,31 @@ export function ChessBoard({ gameId }: Props) {
       socketRef.current = null;
     };
   }, [gameId]);
+
+  useEffect(() => {
+    const boardStage = boardStageRef.current;
+    if (!boardStage) return;
+
+    const updateBoardSize = () => {
+      const nextSize = Math.max(0, Math.floor(Math.min(boardStage.clientWidth, boardStage.clientHeight)));
+      setBoardSize((current) => (current === nextSize ? current : nextSize));
+    };
+
+    updateBoardSize();
+
+    const observer = new ResizeObserver(() => {
+      window.requestAnimationFrame(updateBoardSize);
+    });
+
+    observer.observe(boardStage);
+
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!boardSize) return;
+    chessgroundRef.current?.redrawAll();
+  }, [boardSize]);
 
   useEffect(() => {
     if (!boardRef.current || !state) return;
@@ -308,8 +335,12 @@ export function ChessBoard({ gameId }: Props) {
         <div className="board-layout">
           <div className="board-wrap">
             <p className="board-player board-player-top">{topPlayer}</p>
-            <div className="board-stage">
-              <div ref={boardRef} className="chess-board" />
+            <div ref={boardStageRef} className="board-stage">
+              <div
+                ref={boardRef}
+                className="chess-board"
+                style={boardSize ? { width: `${boardSize}px`, height: `${boardSize}px` } : undefined}
+              />
             </div>
             <p className="board-player board-player-bottom">{bottomPlayer}</p>
           </div>
