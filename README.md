@@ -27,12 +27,18 @@ npm run dev
 
 Depois abra `http://localhost:3000`.
 
+## Como rodar os testes do servidor
+
+```bash
+npm run test:server
+```
+
 ## Como testar o MVP
 
 1. Abra a página inicial em um navegador.
 2. Clique em `Criar partida online`.
-2. Copie o link da partida.
-3. Abra o link em outro navegador ou aba anônima.
+3. Copie o link da partida.
+4. Abra o link em outro navegador ou aba anônima.
 4. Faça uma jogada com as brancas e confirme que ela aparece para as pretas.
 5. Tente uma jogada ilegal e veja que o servidor rejeita.
 6. Quando não for sua vez, selecione uma peça sua e faça um pre-move básico.
@@ -43,13 +49,17 @@ Depois abra `http://localhost:3000`.
 
 1. Abra a página inicial em um navegador.
 2. Clique em `Jogar contra Stockfish`.
-3. Faça uma jogada com as brancas.
-4. Confirme que o status mostra `Stockfish está pensando...`.
-5. Aguarde a resposta e confirme que o tabuleiro recebe a jogada automática das pretas.
+3. Escolha a dificuldade (`easy`, `medium` ou `hard`).
+4. Escolha a sua cor (`white`, `black` ou `random`).
+5. Se você jogar de `white`, faça uma jogada e confirme que o status mostra `Stockfish está pensando...`.
+6. Se você jogar de `black`, confirme que o bot faz a primeira jogada no servidor antes da sua vez.
+7. Aguarde a resposta e confirme que o tabuleiro recebe a jogada automática do Stockfish.
 
 ## Estrutura de pastas
 
 - `server/index.ts`: servidor Node customizado com Next.js, Socket.IO e estado em memória.
+- `server/game-manager.ts`: regras da partida e fluxo do modo `pvp`/`vs-bot` no servidor.
+- `server/game-manager.test.ts`: testes automáticos do fluxo do servidor com bot mockado.
 - `server/services/stockfish.ts`: serviço simples para pedir uma jogada ao Stockfish.
 - `src/app/page.tsx`: tela inicial para criar ou entrar em uma partida.
 - `src/app/game/[id]/page.tsx`: rota da partida.
@@ -64,4 +74,3 @@ Depois abra `http://localhost:3000`.
 - Adicionar escolha de promoção em vez de promover automaticamente para dama.
 - Persistir partidas em banco depois que o fluxo em memória estiver estável.
 - Adicionar relógio, resign, draw offer e histórico visual de lances.
-- Permitir escolher cor e dificuldade no modo `vs-bot`.
