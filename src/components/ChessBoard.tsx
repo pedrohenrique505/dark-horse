@@ -32,6 +32,7 @@ export function ChessBoard({ gameId }: Props) {
   const router = useRouter();
   const boardRef = useRef<HTMLDivElement | null>(null);
   const boardStageRef = useRef<HTMLDivElement | null>(null);
+  const historyListRef = useRef<HTMLDivElement | null>(null);
   const chessgroundRef = useRef<Api | null>(null);
   const socketRef = useRef<Socket<ServerToClientEvents, ClientToServerEvents> | null>(null);
   const playerIdRef = useRef<string | null>(null);
@@ -91,6 +92,8 @@ export function ChessBoard({ gameId }: Props) {
   const bottomPlayer = getBoardSideLabel(state, boardOrientation);
   const displayedPosition = getDisplayedPosition(state, viewedPly);
   const moveRows = groupMoveHistory(state?.moveHistory ?? []);
+  const boardFiles = getBoardFiles(boardOrientation);
+  const boardRanks = getBoardRanks(boardOrientation);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -199,6 +202,14 @@ export function ChessBoard({ gameId }: Props) {
   }, [boardSize]);
 
   useEffect(() => {
+    const historyList = historyListRef.current;
+    if (!historyList) return;
+    if (viewedPly !== (state?.moveHistory.length ?? 0)) return;
+
+    historyList.scrollTop = historyList.scrollHeight;
+  }, [state?.moveHistory.length, viewedPly]);
+
+  useEffect(() => {
     if (!boardRef.current || !state) return;
 
     const onMove = (orig: cg.Key, dest: cg.Key) => {
@@ -225,7 +236,7 @@ export function ChessBoard({ gameId }: Props) {
       turnColor: displayedPosition.turn,
       check: displayedPosition.isCheck,
       lastMove: displayedPosition.lastMove,
-      coordinates: true,
+      coordinates: false,
       highlight: {
         lastMove: true,
         check: true,
@@ -369,12 +380,36 @@ export function ChessBoard({ gameId }: Props) {
         <div className="board-layout">
           <div className="board-wrap" style={boardSize ? ({ "--board-size": `${boardSize}px` } as CSSProperties) : undefined}>
             <p className="board-player board-player-top">{topPlayer}</p>
-            <div ref={boardStageRef} className="board-stage">
-              <div
-                ref={boardRef}
-                className="chess-board"
-                style={boardSize ? { width: `${boardSize}px`, height: `${boardSize}px` } : undefined}
-              />
+            <div className="board-stage">
+              <div className="board-frame">
+                <div className="board-files board-files-top" aria-hidden="true">
+                  {boardFiles.map((file) => (
+                    <span key={`top-${file}`}>{file}</span>
+                  ))}
+                </div>
+                <div className="board-ranks board-ranks-left" aria-hidden="true">
+                  {boardRanks.map((rank) => (
+                    <span key={`left-${rank}`}>{rank}</span>
+                  ))}
+                </div>
+                <div ref={boardStageRef} className="board-core">
+                  <div
+                    ref={boardRef}
+                    className="chess-board"
+                    style={boardSize ? { width: `${boardSize}px`, height: `${boardSize}px` } : undefined}
+                  />
+                </div>
+                <div className="board-ranks board-ranks-right" aria-hidden="true">
+                  {boardRanks.map((rank) => (
+                    <span key={`right-${rank}`}>{rank}</span>
+                  ))}
+                </div>
+                <div className="board-files board-files-bottom" aria-hidden="true">
+                  {boardFiles.map((file) => (
+                    <span key={`bottom-${file}`}>{file}</span>
+                  ))}
+                </div>
+              </div>
             </div>
             <p className="board-player board-player-bottom">{bottomPlayer}</p>
           </div>
@@ -382,7 +417,12 @@ export function ChessBoard({ gameId }: Props) {
           <aside className="board-side-actions">
             <section className="history-panel">
               <p className="history-title">Histórico</p>
-              <div className="history-list">
+              <div className="history-table-head" aria-hidden="true">
+                <span>#</span>
+                <span>White</span>
+                <span>Black</span>
+              </div>
+              <div ref={historyListRef} className="history-list">
                 {moveRows.length === 0 ? (
                   <p className="history-empty">Nenhum lance ainda.</p>
                 ) : (
@@ -542,6 +582,16 @@ function getBoardSideLabel(state: GameState | null, color: PlayerColor) {
   }
 
   return color === "white" ? "Player 1" : "Player 2";
+}
+
+function getBoardFiles(orientation: PlayerColor) {
+  const files = ["a", "b", "c", "d", "e", "f", "g", "h"];
+  return orientation === "white" ? files : [...files].reverse();
+}
+
+function getBoardRanks(orientation: PlayerColor) {
+  const ranks = ["8", "7", "6", "5", "4", "3", "2", "1"];
+  return orientation === "white" ? ranks : [...ranks].reverse();
 }
 
 function getDisplayedPosition(state: GameState | null, viewedPly: number) {
