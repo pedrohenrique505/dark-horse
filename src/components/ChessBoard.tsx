@@ -61,12 +61,13 @@ export function ChessBoard({ gameId }: Props) {
       state.drawOfferFrom &&
       state.drawOfferFrom !== state.playerColor,
   );
+  const canResign = Boolean(state && state.playerColor !== "spectator" && !state.isGameOver);
   const resultReason = state?.result?.reason ?? null;
   const resultWinner = state?.result?.winner ?? null;
   const isGameOver = state?.isGameOver ?? false;
   const boardOrientation = state?.playerColor === "black" ? "black" : "white";
-  const topPlayer = getBoardSidePlayer(state, currentPlayerId, boardOrientation === "white" ? "black" : "white");
-  const bottomPlayer = getBoardSidePlayer(state, currentPlayerId, boardOrientation);
+  const topPlayer = getBoardSideLabel(state, boardOrientation === "white" ? "black" : "white");
+  const bottomPlayer = getBoardSideLabel(state, boardOrientation);
 
   useEffect(() => {
     const playerId = getOrCreatePlayerId();
@@ -228,34 +229,20 @@ export function ChessBoard({ gameId }: Props) {
     socket.emit("respond-draw-offer", { gameId, playerId, accept });
   }
 
-  const status = state ? getStatusText(state) : "Conectando...";
-
   return (
     <main className="page">
       <section className="panel game-panel">
         <div className="game-header">
-          <div>
-            <p className="eyebrow">Partida {gameId}</p>
-            <h1>Dark Horse Chess</h1>
-          </div>
           <div className="header-actions">
             <button type="button" onClick={goHome}>
               Voltar para home
             </button>
-            <button type="button" onClick={copyLink}>
-              Copiar link
-            </button>
+            {state?.mode === "pvp" ? (
+              <button type="button" onClick={copyLink}>
+                Copiar link
+              </button>
+            ) : null}
           </div>
-        </div>
-
-        <div className="status-grid">
-          <span>{status}</span>
-          <span>Modo: {state ? modeLabel(state.mode) : "..."}</span>
-          {state?.bot ? <span>Bot: {botSummary(state)}</span> : null}
-          <span>Você: {state ? roleLabel(state.playerColor) : "..."}</span>
-          <span>{state?.connected ? "Conectado" : "Desconectado"}</span>
-          <span>{playerSlotLabel(state, "white")}</span>
-          <span>{playerSlotLabel(state, "black")}</span>
         </div>
 
         {error ? <p className="error">{error}</p> : null}
@@ -264,7 +251,7 @@ export function ChessBoard({ gameId }: Props) {
           <button
             type="button"
             onClick={resignGame}
-            disabled={!state || state.playerColor === "spectator" || state.isGameOver || state.isBotThinking}
+            disabled={!canResign}
           >
             Desistir
           </button>
@@ -331,34 +318,6 @@ function getMovableColor(state: GameState, canInteractWithBoard: boolean): Playe
   return state.playerColor;
 }
 
-function modeLabel(mode: GameState["mode"]) {
-  if (mode === "vs-bot") return "contra Stockfish";
-  return "online";
-}
-
-function botSummary(state: GameState) {
-  return `${state.bot?.difficulty} | humano de ${roleLabel(state.bot?.humanColor ?? "white")}`;
-}
-
-function playerSlotLabel(state: GameState | null, color: PlayerColor) {
-  const colorLabel = color === "white" ? "Brancas" : "Pretas";
-  if (!state) return `${colorLabel}: ...`;
-
-  if (state.mode === "vs-bot") {
-    const occupant = state.bot?.humanColor === color ? "humano" : "Stockfish";
-    return `${colorLabel}: ${occupant}`;
-  }
-
-  return `${colorLabel}: ${state.players[color] ? "online/ocupado" : "aguardando"}`;
-}
-
-function getStatusText(state: GameState) {
-  if (state.result) return getResultStatusText(state.result);
-  if (state.mode === "vs-bot" && state.isBotThinking) return "Stockfish está pensando...";
-  if (state.isCheck) return `Xeque nas ${state.turn === "white" ? "brancas" : "pretas"}.`;
-  return `Vez das ${state.turn === "white" ? "brancas" : "pretas"}.`;
-}
-
 function getResultTitle(result: GameResult, playerColor: GameState["playerColor"]) {
   if (playerColor !== "spectator" && result.winner === playerColor) return "Você venceu";
   if (playerColor !== "spectator" && result.winner && result.winner !== playerColor) return "Você perdeu";
@@ -394,26 +353,6 @@ function getResultDescription(result: GameResult, playerColor: GameState["player
   return "Partida empatada.";
 }
 
-function getResultStatusText(result: GameResult) {
-  if (result.reason === "resign") {
-    return result.winner === "white"
-      ? "Partida encerrada por desistência. Vitória das brancas."
-      : "Partida encerrada por desistência. Vitória das pretas.";
-  }
-
-  if (result.reason === "agreed-draw") {
-    return "Partida empatada por acordo.";
-  }
-
-  if (result.reason === "checkmate") {
-    return result.winner === "white"
-      ? "Xeque-mate. Vitória das brancas."
-      : "Xeque-mate. Vitória das pretas.";
-  }
-
-  return "Partida empatada.";
-}
-
 function getDrawOfferText(state: GameState) {
   if (!state.drawOfferFrom) return "";
 
@@ -424,24 +363,12 @@ function getDrawOfferText(state: GameState) {
   return `As ${roleLabel(state.drawOfferFrom)} ofereceram empate.`;
 }
 
-function getBoardSidePlayer(
-  state: GameState | null,
-  currentPlayerId: string | null,
-  color: PlayerColor,
-) {
+function getBoardSideLabel(state: GameState | null, color: PlayerColor) {
   if (!state) return "...";
 
-  const playerId = state.playerIds?.[color] ?? null;
-  if (!playerId) return `${colorLabel(color)}: aguardando`;
-  if (playerId === currentPlayerId) return `${colorLabel(color)}: você`;
-  if (playerId === "stockfish") return `${colorLabel(color)}: Stockfish`;
-  return `${colorLabel(color)}: ${shortPlayerId(playerId)}`;
-}
+  if (state.mode === "vs-bot") {
+    return state.bot?.humanColor === color ? "Player 1" : "Stockfish";
+  }
 
-function colorLabel(color: PlayerColor) {
-  return color === "white" ? "Brancas" : "Pretas";
-}
-
-function shortPlayerId(playerId: string) {
-  return playerId.slice(0, 8);
+  return color === "white" ? "Player 1" : "Player 2";
 }
