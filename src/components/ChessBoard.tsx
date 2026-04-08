@@ -412,6 +412,7 @@ export function ChessBoard({ gameId }: Props) {
             </section>
 
             <div className="history-actions">
+              <p className="history-actions-title">Partida</p>
               <button type="button" onClick={() => setIsResignConfirmOpen(true)} disabled={!canResign}>
                 Desistir
               </button>
