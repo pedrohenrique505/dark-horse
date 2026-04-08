@@ -311,3 +311,42 @@ test("não permite jogar depois de desistir", () => {
 
   assert.equal(rejectedMoves.at(-1)?.reason, "A partida já terminou.");
 });
+
+test("recusar empate devolve o jogador solicitante para o fluxo normal", () => {
+  const { manager } = createHarness();
+
+  const room = manager.createGame({ mode: "pvp" });
+  manager.joinGame(room.id, "white-player");
+  manager.joinGame(room.id, "black-player");
+
+  const offer = manager.offerDraw(room.id, "white-player");
+  assert.equal(offer?.opponentPlayerId, "black-player");
+
+  const requesterPlayerId = manager.respondToDrawOffer(room.id, "black-player", false);
+  assert.equal(requesterPlayerId, "white-player");
+
+  const state = manager.buildGameState(room.id, "white-player");
+  assert.ok(state);
+  assert.equal(state.drawOfferFrom, undefined);
+});
+
+test("cada jogador pode pedir empate no máximo duas vezes", () => {
+  const { manager, rejectedMoves } = createHarness();
+
+  const room = manager.createGame({ mode: "pvp" });
+  manager.joinGame(room.id, "white-player");
+  manager.joinGame(room.id, "black-player");
+
+  manager.offerDraw(room.id, "white-player");
+  manager.respondToDrawOffer(room.id, "black-player", false);
+
+  manager.offerDraw(room.id, "white-player");
+  manager.respondToDrawOffer(room.id, "black-player", false);
+
+  manager.offerDraw(room.id, "white-player");
+
+  const state = manager.buildGameState(room.id, "white-player");
+  assert.ok(state);
+  assert.equal(state.drawRequests.white, 2);
+  assert.equal(rejectedMoves.at(-1)?.reason, "Limite de solicitações de empate atingido.");
+});

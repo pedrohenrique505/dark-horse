@@ -90,7 +90,11 @@ io.on("connection", (socket) => {
   });
 
   socket.on("respond-draw-offer", ({ gameId, playerId, accept }) => {
-    gameManager.respondToDrawOffer(gameId, playerId, accept);
+    const requesterPlayerId = gameManager.respondToDrawOffer(gameId, playerId, accept);
+    if (accept || !requesterPlayerId) return;
+
+    const requesterSocket = findSocketByPlayer(gameId, requesterPlayerId);
+    requesterSocket?.emit("draw-offer-declined");
   });
 
   socket.on("disconnect", () => {

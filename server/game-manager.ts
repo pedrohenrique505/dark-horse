@@ -29,6 +29,7 @@ export type GameRoom = {
   players: PlayerSlots;
   result: GameResult | null;
   drawOfferFrom: PlayerColor | null;
+  drawRequests: Record<PlayerColor, number>;
   isBotThinking: boolean;
   nextBotRequestId: number;
   activeBotRequest: BotRequestContext | null;
@@ -60,6 +61,7 @@ export function createGameManager(deps: GameManagerDeps) {
       players: createInitialPlayers(mode, bot),
       result: null,
       drawOfferFrom: null,
+      drawRequests: { white: 0, black: 0 },
       isBotThinking: false,
       nextBotRequestId: 0,
       activeBotRequest: null,
@@ -91,6 +93,7 @@ export function createGameManager(deps: GameManagerDeps) {
       players: {},
       result: null,
       drawOfferFrom: null,
+      drawRequests: { white: 0, black: 0 },
       isBotThinking: false,
       nextBotRequestId: 0,
       activeBotRequest: null,
@@ -211,6 +214,12 @@ export function createGameManager(deps: GameManagerDeps) {
       return null;
     }
 
+    if (room.drawRequests[color] >= 2) {
+      deps.emitMoveRejected(gameId, playerId, "Limite de solicitações de empate atingido.");
+      return null;
+    }
+
+    room.drawRequests[color] += 1;
     room.drawOfferFrom = color;
     deps.emitRoomState(gameId);
     return {
@@ -252,11 +261,14 @@ export function createGameManager(deps: GameManagerDeps) {
         winner: null,
         reason: "agreed-draw",
       });
+      deps.emitRoomState(gameId);
+      return null;
     } else {
+      const requesterPlayerId = getPlayerIdByColor(room, room.drawOfferFrom);
       clearDrawOffer(room);
+      deps.emitRoomState(gameId);
+      return requesterPlayerId;
     }
-
-    deps.emitRoomState(gameId);
   }
 
   function handleDisconnect(gameId: string) {
@@ -290,6 +302,7 @@ export function createGameManager(deps: GameManagerDeps) {
         white: Boolean(room.players.white),
         black: Boolean(room.players.black),
       },
+      drawRequests: room.drawRequests,
       playerIds: {
         white: room.players.white ?? null,
         black: room.players.black ?? null,
@@ -357,6 +370,11 @@ function getOpponentPlayerId(room: GameRoom, playerId: string) {
   if (room.players.white === playerId) return room.players.black ?? null;
   if (room.players.black === playerId) return room.players.white ?? null;
   return null;
+}
+
+function getPlayerIdByColor(room: GameRoom, color: PlayerColor | null) {
+  if (!color) return null;
+  return room.players[color] ?? null;
 }
 
 function findPlayerColor(room: GameRoom, playerId: string): PlayerRole {

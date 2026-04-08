@@ -37,6 +37,10 @@ export type GameState = {
     white: boolean;
     black: boolean;
   };
+  drawRequests: {
+    white: number;
+    black: number;
+  };
   playerIds: {
     white: string | null;
     black: string | null;
@@ -69,4 +73,5 @@ export type ServerToClientEvents = {
   "game-state": (state: GameState) => void;
   "move-rejected": (payload: { reason: string }) => void;
   "draw-offer-received": (payload: { from: PlayerColor }) => void;
+  "draw-offer-declined": () => void;
 };
