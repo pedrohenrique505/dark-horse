@@ -81,6 +81,7 @@ select {
 .game-panel {
   position: relative;
   isolation: isolate;
+  --board-size: min(42rem, calc(100vw - 6rem), calc(100dvh - 22rem));
 }
 
 .eyebrow,
@@ -161,7 +162,7 @@ h1 {
 
 .board-wrap {
   display: grid;
-  justify-items: start;
+  justify-items: center;
   margin-top: 1rem;
 }
 
@@ -199,7 +200,7 @@ h1 {
 }
 
 .chess-board {
-  width: min(82vw, 70vh, 42rem);
+  width: min(100%, var(--board-size));
   aspect-ratio: 1;
 }
 
@@ -276,12 +277,16 @@ h1 {
     padding: 1rem;
   }
 
+  .game-panel {
+    --board-size: min(calc(100vw - 4rem), calc(100dvh - 20rem));
+  }
+
   .board-wrap {
     justify-items: stretch;
   }
 
   .chess-board {
-    width: min(100vw - 2rem, 70vh);
+    width: min(100%, var(--board-size));
   }
 
   .join-form div,
