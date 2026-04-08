@@ -70,8 +70,6 @@ export function ChessBoard({ gameId }: Props) {
       state.drawOfferFrom === state.playerColor,
   );
   const canResign = Boolean(state && state.playerColor !== "spectator" && !state.isGameOver);
-  const resultReason = state?.result?.reason ?? null;
-  const resultWinner = state?.result?.winner ?? null;
   const isGameOver = state?.isGameOver ?? false;
   const boardOrientation = state?.playerColor === "black" ? "black" : "white";
   const topPlayer = getBoardSideLabel(state, boardOrientation === "white" ? "black" : "white");
@@ -96,6 +94,9 @@ export function ChessBoard({ gameId }: Props) {
     socket.on("game-state", (nextState) => {
       setState(nextState);
       setError(null);
+      if (nextState.isGameOver && nextState.result) {
+        setIsResultModalOpen(true);
+      }
     });
 
     socket.on("move-rejected", ({ reason }) => setError(reason));
@@ -198,12 +199,6 @@ export function ChessBoard({ gameId }: Props) {
   useEffect(() => {
     return () => chessgroundRef.current?.destroy();
   }, []);
-
-  useEffect(() => {
-    if (isGameOver && resultReason) {
-      setIsResultModalOpen(true);
-    }
-  }, [isGameOver, resultReason, resultWinner]);
 
   useEffect(() => {
     if (isGameOver) {
