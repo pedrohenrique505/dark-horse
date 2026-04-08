@@ -61,7 +61,7 @@ select {
 .page {
   display: grid;
   min-height: 100dvh;
-  place-items: center;
+  place-items: start center;
   padding: 2rem;
 }
 
@@ -81,10 +81,13 @@ select {
 .game-panel {
   display: flex;
   flex-direction: column;
+  align-items: center;
   position: relative;
   isolation: isolate;
   width: min(100%, 62rem);
+  min-height: calc(100dvh - 4rem);
   max-height: calc(100dvh - 4rem);
+  overflow: hidden;
 }
 
 .eyebrow,
@@ -149,6 +152,7 @@ h1 {
 .game-header {
   align-items: start;
   justify-content: space-between;
+  width: 100%;
 }
 
 .header-actions,
@@ -161,12 +165,15 @@ h1 {
 
 .error {
   color: var(--danger);
+  width: 100%;
 }
 
 .board-wrap {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  justify-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.5rem;
   flex: 1;
   min-height: 0;
   width: 100%;
@@ -175,11 +182,13 @@ h1 {
 
 .game-actions {
   margin-top: 1rem;
+  width: 100%;
 }
 
 .game-note {
   color: var(--muted);
   margin: 0.75rem 0 0;
+  width: 100%;
 }
 
 .game-status-banner {
@@ -189,6 +198,7 @@ h1 {
   background: #11181f;
   color: var(--text);
   padding: 0.9rem 1rem;
+  width: 100%;
 }
 
 .side-confirm {
@@ -199,6 +209,7 @@ h1 {
   border-radius: 0.9rem;
   background: #11181f;
   padding: 1rem;
+  width: 100%;
 }
 
 .side-confirm-text {
@@ -207,16 +218,18 @@ h1 {
 }
 
 .board-stage {
-  display: grid;
-  place-items: center;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
   width: 100%;
   min-height: 0;
-  height: 100%;
-  container-type: size;
+  flex: 1;
 }
 
 .chess-board {
-  width: min(100cqw, 100cqh, 42rem);
+  width: min(100%, 42rem);
+  max-width: 42rem;
+  max-height: 100%;
   aspect-ratio: 1;
 }
 
@@ -294,15 +307,16 @@ h1 {
   }
 
   .board-wrap {
-    justify-items: stretch;
+    align-items: stretch;
   }
 
   .board-stage {
-    justify-items: center;
+    justify-content: center;
   }
 
   .chess-board {
-    width: min(100cqw, 100cqh);
+    width: min(100%, 42rem);
+    max-width: 100%;
   }
 
   .join-form div,
