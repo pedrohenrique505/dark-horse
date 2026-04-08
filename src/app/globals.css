@@ -60,7 +60,7 @@ select {
 
 .page {
   display: grid;
-  min-height: 100vh;
+  min-height: 100dvh;
   place-items: center;
   padding: 2rem;
 }
@@ -79,9 +79,12 @@ select {
 }
 
 .game-panel {
+  display: flex;
+  flex-direction: column;
   position: relative;
   isolation: isolate;
-  --board-size: min(42rem, calc(100vw - 6rem), calc(100dvh - 22rem));
+  width: min(100%, 62rem);
+  max-height: calc(100dvh - 4rem);
 }
 
 .eyebrow,
@@ -162,7 +165,11 @@ h1 {
 
 .board-wrap {
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   justify-items: center;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
   margin-top: 1rem;
 }
 
@@ -199,8 +206,17 @@ h1 {
   color: var(--text);
 }
 
+.board-stage {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-height: 0;
+  height: 100%;
+  container-type: size;
+}
+
 .chess-board {
-  width: min(100%, var(--board-size));
+  width: min(100cqw, 100cqh, 42rem);
   aspect-ratio: 1;
 }
 
@@ -277,16 +293,16 @@ h1 {
     padding: 1rem;
   }
 
-  .game-panel {
-    --board-size: min(calc(100vw - 4rem), calc(100dvh - 20rem));
-  }
-
   .board-wrap {
     justify-items: stretch;
   }
 
+  .board-stage {
+    justify-items: center;
+  }
+
   .chess-board {
-    width: min(100%, var(--board-size));
+    width: min(100cqw, 100cqh);
   }
 
   .join-form div,

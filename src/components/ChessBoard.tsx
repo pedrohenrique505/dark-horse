@@ -326,7 +326,9 @@ export function ChessBoard({ gameId }: Props) {
 
         <div className="board-wrap">
           <p className="board-player board-player-top">{topPlayer}</p>
-          <div ref={boardRef} className="chess-board" />
+          <div className="board-stage">
+            <div ref={boardRef} className="chess-board" />
+          </div>
           <p className="board-player board-player-bottom">{bottomPlayer}</p>
         </div>
       </section>
