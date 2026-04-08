@@ -166,7 +166,7 @@ h1 {
 
 .board-wrap {
   display: grid;
-  place-items: center;
+  justify-items: start;
   margin-top: 1rem;
 }
 
@@ -174,9 +174,28 @@ h1 {
   margin-top: 1rem;
 }
 
+.game-note {
+  color: var(--muted);
+  margin: 0.75rem 0 0;
+}
+
 .chess-board {
   width: min(82vw, 70vh, 42rem);
   aspect-ratio: 1;
+}
+
+.board-player {
+  color: var(--text);
+  font-weight: 700;
+  margin: 0;
+}
+
+.board-player-top {
+  margin-bottom: 0.5rem;
+}
+
+.board-player-bottom {
+  margin-top: 0.5rem;
 }
 
 .cg-wrap {

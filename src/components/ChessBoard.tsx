@@ -61,7 +61,12 @@ export function ChessBoard({ gameId }: Props) {
       state.drawOfferFrom &&
       state.drawOfferFrom !== state.playerColor,
   );
-  const resultKey = state?.result ? `${state.result.reason}-${state.result.winner ?? "draw"}` : null;
+  const resultReason = state?.result?.reason ?? null;
+  const resultWinner = state?.result?.winner ?? null;
+  const isGameOver = state?.isGameOver ?? false;
+  const boardOrientation = state?.playerColor === "black" ? "black" : "white";
+  const topPlayer = getBoardSidePlayer(state, currentPlayerId, boardOrientation === "white" ? "black" : "white");
+  const bottomPlayer = getBoardSidePlayer(state, currentPlayerId, boardOrientation);
 
   useEffect(() => {
     const playerId = getOrCreatePlayerId();
@@ -115,7 +120,7 @@ export function ChessBoard({ gameId }: Props) {
 
     const config: Config = {
       fen: state.fen,
-      orientation: state.playerColor === "black" ? "black" : "white",
+      orientation: boardOrientation,
       turnColor: state.turn,
       check: state.isCheck,
       lastMove: state.lastMove as cg.Key[] | undefined,
@@ -160,7 +165,7 @@ export function ChessBoard({ gameId }: Props) {
     }
 
     chessgroundRef.current.set(config);
-  }, [canInteractWithBoard, gameId, state]);
+  }, [boardOrientation, canInteractWithBoard, gameId, state]);
 
   useEffect(() => {
     if (!state || !pendingPremove || state.playerColor !== state.turn) return;
@@ -186,10 +191,10 @@ export function ChessBoard({ gameId }: Props) {
   }, []);
 
   useEffect(() => {
-    if (state?.isGameOver && state.result) {
+    if (isGameOver && resultReason) {
       setIsResultModalOpen(true);
     }
-  }, [resultKey, state?.isGameOver]);
+  }, [isGameOver, resultReason, resultWinner]);
 
   async function copyLink() {
     await navigator.clipboard.writeText(shareUrl);
@@ -254,9 +259,6 @@ export function ChessBoard({ gameId }: Props) {
         </div>
 
         {error ? <p className="error">{error}</p> : null}
-        {pendingPremove ? (
-          <p className="hint">Pre-move salvo: {pendingPremove.from} → {pendingPremove.to}</p>
-        ) : null}
 
         <div className="game-actions">
           <button
@@ -286,30 +288,28 @@ export function ChessBoard({ gameId }: Props) {
         </div>
 
         {state?.drawOfferFrom ? (
-          <p className="hint">{getDrawOfferText(state)}</p>
+          <p className="game-note">{getDrawOfferText(state)}</p>
         ) : null}
 
         <div className="board-wrap">
+          <p className="board-player board-player-top">{topPlayer}</p>
           <div ref={boardRef} className="chess-board" />
+          <p className="board-player board-player-bottom">{bottomPlayer}</p>
         </div>
-
-        <p className="hint">
-          Dica: arraste ou clique nas peças para jogar. Use o botão direito no tabuleiro para desenhar setas.
-        </p>
       </section>
 
       {isResultModalOpen && state?.result ? (
         <div className="modal-backdrop">
           <section className="modal-card">
             <p className="eyebrow">Fim da partida</p>
-            <h2>{getResultTitle(state.result)}</h2>
-            <p className="lead modal-text">{getResultDescription(state.result)}</p>
+            <h2>{getResultTitle(state.result, state.playerColor)}</h2>
+            <p className="lead modal-text">{getResultDescription(state.result, state.playerColor)}</p>
             <div className="modal-actions">
               <button type="button" onClick={goHome}>
                 Voltar para home
               </button>
-              <button type="button" onClick={() => setIsResultModalOpen(false)}>
-                Fechar
+              <button type="button" onClick={goHome}>
+                Nova partida
               </button>
             </div>
           </section>
@@ -353,20 +353,27 @@ function playerSlotLabel(state: GameState | null, color: PlayerColor) {
 }
 
 function getStatusText(state: GameState) {
-  if (state.result) return getResultDescription(state.result);
+  if (state.result) return getResultStatusText(state.result);
   if (state.mode === "vs-bot" && state.isBotThinking) return "Stockfish está pensando...";
   if (state.isCheck) return `Xeque nas ${state.turn === "white" ? "brancas" : "pretas"}.`;
   return `Vez das ${state.turn === "white" ? "brancas" : "pretas"}.`;
 }
 
-function getResultTitle(result: GameResult) {
+function getResultTitle(result: GameResult, playerColor: GameState["playerColor"]) {
+  if (playerColor !== "spectator" && result.winner === playerColor) return "Você venceu";
+  if (playerColor !== "spectator" && result.winner && result.winner !== playerColor) return "Você perdeu";
   if (result.winner === "white") return "Vitória das brancas";
   if (result.winner === "black") return "Vitória das pretas";
   return "Empate";
 }
 
-function getResultDescription(result: GameResult) {
+function getResultDescription(result: GameResult, playerColor: GameState["playerColor"]) {
+  const perspectiveWinner =
+    playerColor !== "spectator" && result.winner ? result.winner === playerColor : null;
+
   if (result.reason === "resign") {
+    if (perspectiveWinner === true) return "O outro lado desistiu. Vitória sua.";
+    if (perspectiveWinner === false) return "Você desistiu da partida.";
     return result.winner === "white"
       ? "As pretas desistiram. Vitória das brancas."
       : "As brancas desistiram. Vitória das pretas.";
@@ -374,6 +381,28 @@ function getResultDescription(result: GameResult) {
 
   if (result.reason === "agreed-draw") {
     return "Partida empatada por acordo entre os jogadores.";
+  }
+
+  if (result.reason === "checkmate") {
+    if (perspectiveWinner === true) return "Xeque-mate. Vitória sua.";
+    if (perspectiveWinner === false) return "Xeque-mate. Derrota sua.";
+    return result.winner === "white"
+      ? "Xeque-mate. Vitória das brancas."
+      : "Xeque-mate. Vitória das pretas.";
+  }
+
+  return "Partida empatada.";
+}
+
+function getResultStatusText(result: GameResult) {
+  if (result.reason === "resign") {
+    return result.winner === "white"
+      ? "Partida encerrada por desistência. Vitória das brancas."
+      : "Partida encerrada por desistência. Vitória das pretas.";
+  }
+
+  if (result.reason === "agreed-draw") {
+    return "Partida empatada por acordo.";
   }
 
   if (result.reason === "checkmate") {
@@ -393,4 +422,26 @@ function getDrawOfferText(state: GameState) {
   }
 
   return `As ${roleLabel(state.drawOfferFrom)} ofereceram empate.`;
+}
+
+function getBoardSidePlayer(
+  state: GameState | null,
+  currentPlayerId: string | null,
+  color: PlayerColor,
+) {
+  if (!state) return "...";
+
+  const playerId = state.playerIds[color];
+  if (!playerId) return `${colorLabel(color)}: aguardando`;
+  if (playerId === currentPlayerId) return `${colorLabel(color)}: você`;
+  if (playerId === "stockfish") return `${colorLabel(color)}: Stockfish`;
+  return `${colorLabel(color)}: ${shortPlayerId(playerId)}`;
+}
+
+function colorLabel(color: PlayerColor) {
+  return color === "white" ? "Brancas" : "Pretas";
+}
+
+function shortPlayerId(playerId: string) {
+  return playerId.slice(0, 8);
 }
