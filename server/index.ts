@@ -4,6 +4,8 @@ import { Chess, type Move } from "chess.js";
 import { Server } from "socket.io";
 import { getBestMove, type EngineMove } from "./services/stockfish";
 import type {
+  BotDifficulty,
+  BotSettings,
   ClientToServerEvents,
   CreateGameRequest,
   GameMode,
@@ -17,6 +19,7 @@ type PlayerSlots = Partial<Record<PlayerColor, string>>;
 type GameRoom = {
   id: string;
   mode: GameMode;
+  bot: BotSettings | null;
   chess: Chess;
   players: PlayerSlots;
   isBotThinking: boolean;
@@ -29,7 +32,8 @@ const BOT_PLAYER_ID = "stockfish";
 type BotRequestContext = {
   id: number;
   fen: string;
-  playerId: string;
+  difficulty: BotDifficulty;
+  playerId: string | null;
 };
 
 const dev = process.env.NODE_ENV !== "production";
@@ -41,13 +45,16 @@ const handle = app.getRequestHandler();
 const games = new Map<string, GameRoom>();
 const socketSessions = new Map<string, { gameId: string; playerId: string }>();
 
-function createGame(mode: GameMode = "pvp"): GameRoom {
+function createGame(request: CreateGameRequest = {}): GameRoom {
+  const mode = request.mode ?? "pvp";
+  const bot = mode === "vs-bot" ? buildBotSettings(request) : null;
   const id = crypto.randomUUID().slice(0, 8);
   const room: GameRoom = {
     id,
     mode,
+    bot,
     chess: new Chess(),
-    players: mode === "vs-bot" ? { black: BOT_PLAYER_ID } : {},
+    players: createInitialPlayers(mode, bot),
     isBotThinking: false,
     nextBotRequestId: 0,
     activeBotRequest: null,
@@ -63,6 +70,7 @@ function getOrCreateGame(id: string): GameRoom {
   const room: GameRoom = {
     id,
     mode: "pvp",
+    bot: null,
     chess: new Chess(),
     players: {},
     isBotThinking: false,
@@ -75,10 +83,12 @@ function getOrCreateGame(id: string): GameRoom {
 
 function getPlayerColor(room: GameRoom, playerId: string): PlayerColor | "spectator" {
   if (room.mode === "vs-bot") {
-    if (room.players.white === playerId) return "white";
-    if (!room.players.white) {
-      room.players.white = playerId;
-      return "white";
+    const humanColor = room.bot?.humanColor ?? "white";
+
+    if (room.players[humanColor] === playerId) return humanColor;
+    if (!room.players[humanColor]) {
+      room.players[humanColor] = playerId;
+      return humanColor;
     }
 
     return "spectator";
@@ -116,6 +126,7 @@ function buildGameState(room: GameRoom, playerId: string): GameState {
   return {
     id: room.id,
     mode: room.mode,
+    bot: room.bot ?? undefined,
     fen: room.chess.fen(),
     pgn: room.chess.pgn(),
     turn: toColor(room.chess.turn()),
@@ -150,7 +161,13 @@ await app.prepare();
 const httpServer = createServer(async (req, res) => {
   if (req.method === "POST" && req.url === "/api/games") {
     const body = await readJson<CreateGameRequest>(req);
-    const room = createGame(body.mode);
+    const room = createGame(body);
+
+    if (shouldBotPlay(room)) {
+      const request = startBotRequest(room, null);
+      void playBotMove(io, room.id, request);
+    }
+
     res.writeHead(201, { "content-type": "application/json" });
     res.end(JSON.stringify({ id: room.id }));
     return;
@@ -239,7 +256,7 @@ async function readJson<T>(req: IncomingMessage): Promise<T> {
 }
 
 function shouldBotPlay(room: GameRoom): boolean {
-  return room.mode === "vs-bot" && !room.chess.isGameOver() && room.chess.turn() === "b";
+  return room.mode === "vs-bot" && !room.chess.isGameOver() && room.chess.turn() === toTurn(getBotColor(room));
 }
 
 async function playBotMove(
@@ -250,8 +267,7 @@ async function playBotMove(
   try {
     const bestMove = await getBestMove({
       fen: request.fen,
-      moveTimeMs: 250,
-      skillLevel: 5,
+      ...getDifficultyConfig(request.difficulty),
     });
 
     if (!bestMove) {
@@ -266,7 +282,7 @@ async function playBotMove(
     applyBotMove(room, bestMove);
   } catch (error) {
     console.error("Erro ao pedir jogada do Stockfish:", error);
-    const socket = findSocketByPlayer(io, gameId, request.playerId);
+    const socket = request.playerId ? findSocketByPlayer(io, gameId, request.playerId) : null;
     socket?.emit("move-rejected", { reason: "Não foi possível obter a resposta do Stockfish." });
   } finally {
     const room = games.get(gameId);
@@ -296,10 +312,11 @@ function findSocketByPlayer(
   return null;
 }
 
-function startBotRequest(room: GameRoom, playerId: string): BotRequestContext {
+function startBotRequest(room: GameRoom, playerId: string | null): BotRequestContext {
   const request: BotRequestContext = {
     id: room.nextBotRequestId + 1,
     fen: room.chess.fen(),
+    difficulty: getBotDifficulty(room),
     playerId,
   };
 
@@ -328,7 +345,7 @@ function getRoomReadyForBotMove(gameId: string, request: BotRequestContext): Gam
   if (!room.isBotThinking) return null;
   if (!isCurrentBotRequest(room, request)) return null;
   if (room.chess.isGameOver()) return null;
-  if (room.chess.turn() !== "b") return null;
+  if (room.chess.turn() !== toTurn(getBotColor(room))) return null;
   if (room.chess.fen() !== request.fen) return null;
   return room;
 }
@@ -338,4 +355,49 @@ function applyBotMove(room: GameRoom, move: EngineMove) {
   if (!appliedMove) {
     throw new Error("Stockfish retornou uma jogada inválida para o estado atual.");
   }
+}
+
+function buildBotSettings(request: CreateGameRequest): BotSettings {
+  return {
+    difficulty: request.botDifficulty ?? "medium",
+    humanColor: resolveHumanColor(request.humanColor),
+  };
+}
+
+function resolveHumanColor(humanColor: CreateGameRequest["humanColor"]): PlayerColor {
+  if (humanColor === "black" || humanColor === "white") return humanColor;
+  return Math.random() < 0.5 ? "white" : "black";
+}
+
+function createInitialPlayers(mode: GameMode, bot: BotSettings | null): PlayerSlots {
+  if (mode !== "vs-bot" || !bot) return {};
+  return { [getBotColorFromSettings(bot)]: BOT_PLAYER_ID };
+}
+
+function getBotColor(room: GameRoom): PlayerColor {
+  return getBotColorFromSettings(room.bot);
+}
+
+function getBotColorFromSettings(bot: BotSettings | null): PlayerColor {
+  return bot?.humanColor === "black" ? "white" : "black";
+}
+
+function toTurn(color: PlayerColor): "w" | "b" {
+  return color === "white" ? "w" : "b";
+}
+
+function getBotDifficulty(room: GameRoom): BotDifficulty {
+  return room.bot?.difficulty ?? "medium";
+}
+
+function getDifficultyConfig(difficulty: BotDifficulty) {
+  if (difficulty === "easy") {
+    return { skillLevel: 1, moveTimeMs: 120 };
+  }
+
+  if (difficulty === "hard") {
+    return { skillLevel: 12, moveTimeMs: 600 };
+  }
+
+  return { skillLevel: 5, moveTimeMs: 250 };
 }

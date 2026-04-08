@@ -181,10 +181,11 @@ export function ChessBoard({ gameId }: Props) {
         <div className="status-grid">
           <span>{status}</span>
           <span>Modo: {state ? modeLabel(state.mode) : "..."}</span>
+          {state?.bot ? <span>Bot: {botSummary(state)}</span> : null}
           <span>Você: {state ? roleLabel(state.playerColor) : "..."}</span>
           <span>{state?.connected ? "Conectado" : "Desconectado"}</span>
-          <span>Brancas: {state?.players.white ? "online/ocupado" : "aguardando"}</span>
-          <span>{blackPlayerLabel(state)}</span>
+          <span>{playerSlotLabel(state, "white")}</span>
+          <span>{playerSlotLabel(state, "black")}</span>
         </div>
 
         {error ? <p className="error">{error}</p> : null}
@@ -221,10 +222,20 @@ function modeLabel(mode: GameState["mode"]) {
   return "online";
 }
 
-function blackPlayerLabel(state: GameState | null) {
-  if (!state) return "Pretas: ...";
-  if (state.mode === "vs-bot") return "Pretas: Stockfish";
-  return `Pretas: ${state.players.black ? "online/ocupado" : "aguardando"}`;
+function botSummary(state: GameState) {
+  return `${state.bot?.difficulty} | humano de ${roleLabel(state.bot?.humanColor ?? "white")}`;
+}
+
+function playerSlotLabel(state: GameState | null, color: PlayerColor) {
+  const colorLabel = color === "white" ? "Brancas" : "Pretas";
+  if (!state) return `${colorLabel}: ...`;
+
+  if (state.mode === "vs-bot") {
+    const occupant = state.bot?.humanColor === color ? "humano" : "Stockfish";
+    return `${colorLabel}: ${occupant}`;
+  }
+
+  return `${colorLabel}: ${state.players[color] ? "online/ocupado" : "aguardando"}`;
 }
 
 function getStatusText(state: GameState) {

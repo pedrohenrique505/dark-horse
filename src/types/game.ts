@@ -1,10 +1,18 @@
 export type PlayerColor = "white" | "black";
 export type PlayerRole = PlayerColor | "spectator";
 export type GameMode = "pvp" | "vs-bot";
+export type BotDifficulty = "easy" | "medium" | "hard";
+export type BotColorChoice = PlayerColor | "random";
+
+export type BotSettings = {
+  difficulty: BotDifficulty;
+  humanColor: PlayerColor;
+};
 
 export type GameState = {
   id: string;
   mode: GameMode;
+  bot?: BotSettings;
   fen: string;
   pgn: string;
   turn: PlayerColor;
@@ -24,6 +32,8 @@ export type GameState = {
 
 export type CreateGameRequest = {
   mode?: GameMode;
+  botDifficulty?: BotDifficulty;
+  humanColor?: BotColorChoice;
 };
 
 export type MovePayload = {
