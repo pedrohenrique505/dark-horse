@@ -431,7 +431,7 @@ function getBoardSidePlayer(
 ) {
   if (!state) return "...";
 
-  const playerId = state.playerIds[color];
+  const playerId = state.playerIds?.[color] ?? null;
   if (!playerId) return `${colorLabel(color)}: aguardando`;
   if (playerId === currentPlayerId) return `${colorLabel(color)}: você`;
   if (playerId === "stockfish") return `${colorLabel(color)}: Stockfish`;
