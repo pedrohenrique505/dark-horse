@@ -88,6 +88,7 @@ select {
   min-height: calc(100dvh - 4rem);
   max-height: calc(100dvh - 4rem);
   overflow: hidden;
+  padding-top: 4.5rem;
 }
 
 .eyebrow,
@@ -139,9 +140,6 @@ h1 {
 }
 
 .join-form div,
-.game-header,
-.header-actions,
-.game-actions,
 .modal-actions,
 .side-confirm-actions,
 .draw-offer-actions {
@@ -149,18 +147,26 @@ h1 {
   gap: 0.75rem;
 }
 
-.game-header {
-  align-items: start;
-  justify-content: space-between;
-  width: 100%;
-}
-
-.header-actions,
-.game-actions,
 .modal-actions,
 .side-confirm-actions,
 .draw-offer-actions {
   flex-wrap: wrap;
+}
+
+.back-button {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+}
+
+.back-button svg {
+  width: 1.5rem;
+  height: 1.5rem;
 }
 
 .error {
@@ -168,36 +174,20 @@ h1 {
   width: 100%;
 }
 
-.board-wrap {
+.board-layout {
   display: flex;
-  flex-direction: column;
-  align-items: center;
+  align-items: stretch;
   justify-content: flex-start;
-  gap: 0.5rem;
+  gap: 1rem;
   flex: 1;
   min-height: 0;
   width: 100%;
   margin-top: 1rem;
 }
 
-.game-actions {
-  margin-top: 1rem;
-  width: 100%;
-}
-
 .game-note {
   color: var(--muted);
   margin: 0.75rem 0 0;
-  width: 100%;
-}
-
-.game-status-banner {
-  margin-top: 1rem;
-  border: 1px solid #2d3946;
-  border-radius: 0.9rem;
-  background: #11181f;
-  color: var(--text);
-  padding: 0.9rem 1rem;
   width: 100%;
 }
 
@@ -210,6 +200,16 @@ h1 {
   background: #11181f;
   padding: 1rem;
   width: 100%;
+}
+
+.board-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
 }
 
 .side-confirm-text {
@@ -231,6 +231,14 @@ h1 {
   max-width: 42rem;
   max-height: 100%;
   aspect-ratio: 1;
+}
+
+.board-side-actions {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.75rem;
+  flex: 0 0 10rem;
 }
 
 .board-player {
@@ -306,8 +314,15 @@ h1 {
     padding: 1rem;
   }
 
-  .board-wrap {
-    align-items: stretch;
+  .game-panel {
+    min-height: calc(100dvh - 2rem);
+    max-height: calc(100dvh - 2rem);
+    padding-top: 3.75rem;
+  }
+
+  .board-layout {
+    flex-direction: column;
+    align-items: center;
   }
 
   .board-stage {
@@ -319,10 +334,12 @@ h1 {
     max-width: 100%;
   }
 
+  .board-side-actions {
+    width: 100%;
+    flex: 0 0 auto;
+  }
+
   .join-form div,
-  .game-header,
-  .header-actions,
-  .game-actions,
   .modal-actions,
   .side-confirm-actions,
   .draw-offer-actions {

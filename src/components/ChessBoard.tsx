@@ -268,33 +268,20 @@ export function ChessBoard({ gameId }: Props) {
   return (
     <main className="page">
       <section className="panel game-panel">
-        <div className="game-header">
-          <div className="header-actions">
-            <button type="button" onClick={goHome}>
-              Voltar para home
-            </button>
-            {state?.mode === "pvp" ? (
-              <button type="button" onClick={copyLink}>
-                Copiar link
-              </button>
-            ) : null}
-          </div>
-        </div>
+        <button type="button" className="back-button" onClick={goHome} aria-label="Voltar para home">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M15 6 9 12l6 6"
+              fill="none"
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+            />
+          </svg>
+        </button>
 
         {error ? <p className="error">{error}</p> : null}
-
-        <div className="game-actions">
-          <button type="button" onClick={() => setIsResignConfirmOpen(true)} disabled={!canResign}>
-            Desistir
-          </button>
-
-          {canOfferDraw ? (
-            <button type="button" onClick={offerDraw}>
-              Pedir empate
-            </button>
-          ) : null}
-
-        </div>
 
         {isResignConfirmOpen ? (
           <aside className="side-confirm">
@@ -318,18 +305,32 @@ export function ChessBoard({ gameId }: Props) {
           <p className="game-note">{drawFeedback}</p>
         ) : null}
 
-        {state ? (
-          <div className="game-status-banner">
-            {getStatusMessage(state)}
+        <div className="board-layout">
+          <div className="board-wrap">
+            <p className="board-player board-player-top">{topPlayer}</p>
+            <div className="board-stage">
+              <div ref={boardRef} className="chess-board" />
+            </div>
+            <p className="board-player board-player-bottom">{bottomPlayer}</p>
           </div>
-        ) : null}
 
-        <div className="board-wrap">
-          <p className="board-player board-player-top">{topPlayer}</p>
-          <div className="board-stage">
-            <div ref={boardRef} className="chess-board" />
+          <div className="board-side-actions">
+            <button type="button" onClick={() => setIsResignConfirmOpen(true)} disabled={!canResign}>
+              Desistir
+            </button>
+
+            {state?.mode === "pvp" ? (
+              <button type="button" onClick={copyLink}>
+                Copiar link
+              </button>
+            ) : null}
+
+            {canOfferDraw ? (
+              <button type="button" onClick={offerDraw}>
+                Pedir empate
+              </button>
+            ) : null}
           </div>
-          <p className="board-player board-player-bottom">{bottomPlayer}</p>
         </div>
       </section>
 
@@ -366,12 +367,6 @@ export function ChessBoard({ gameId }: Props) {
       ) : null}
     </main>
   );
-}
-
-function roleLabel(role: GameState["playerColor"]) {
-  if (role === "white") return "brancas";
-  if (role === "black") return "pretas";
-  return "espectador";
 }
 
 function getMovableColor(state: GameState, canInteractWithBoard: boolean): PlayerColor | undefined {
@@ -431,13 +426,6 @@ function getBoardSideLabel(state: GameState | null, color: PlayerColor) {
   }
 
   return color === "white" ? "Player 1" : "Player 2";
-}
-
-function getStatusMessage(state: GameState) {
-  if (state.result) return getResultTitle(state.result, state.playerColor);
-  if (state.mode === "vs-bot" && state.isBotThinking) return "Stockfish está pensando...";
-  if (state.isCheck) return `Xeque nas ${roleLabel(state.turn)}.`;
-  return `Vez das ${roleLabel(state.turn)}.`;
 }
 
 function playStateSound(
