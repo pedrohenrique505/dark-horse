@@ -187,32 +187,36 @@ export function createGameManager(deps: GameManagerDeps) {
     const room = games.get(gameId);
     if (!room) {
       deps.emitMoveRejected(gameId, playerId, "Partida não encontrada.");
-      return;
+      return null;
     }
 
     if (room.mode !== "pvp") {
       deps.emitMoveRejected(gameId, playerId, "Pedido de empate só existe no modo online.");
-      return;
+      return null;
     }
 
     const color = findPlayerColor(room, playerId);
     if (color === "spectator") {
       deps.emitMoveRejected(gameId, playerId, "Espectadores não podem oferecer empate.");
-      return;
+      return null;
     }
 
     if (isGameFinished(room)) {
       deps.emitMoveRejected(gameId, playerId, "A partida já terminou.");
-      return;
+      return null;
     }
 
     if (room.drawOfferFrom) {
       deps.emitMoveRejected(gameId, playerId, "Já existe um pedido de empate pendente.");
-      return;
+      return null;
     }
 
     room.drawOfferFrom = color;
     deps.emitRoomState(gameId);
+    return {
+      from: color,
+      opponentPlayerId: getOpponentPlayerId(room, playerId),
+    };
   }
 
   function respondToDrawOffer(gameId: string, playerId: string, accept: boolean) {
@@ -347,6 +351,12 @@ export function createGameManager(deps: GameManagerDeps) {
     handleDisconnect,
     buildGameState,
   };
+}
+
+function getOpponentPlayerId(room: GameRoom, playerId: string) {
+  if (room.players.white === playerId) return room.players.black ?? null;
+  if (room.players.black === playerId) return room.players.white ?? null;
+  return null;
 }
 
 function findPlayerColor(room: GameRoom, playerId: string): PlayerRole {

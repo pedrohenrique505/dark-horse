@@ -82,7 +82,11 @@ io.on("connection", (socket) => {
   });
 
   socket.on("offer-draw", ({ gameId, playerId }) => {
-    gameManager.offerDraw(gameId, playerId);
+    const offer = gameManager.offerDraw(gameId, playerId);
+    if (!offer?.opponentPlayerId) return;
+
+    const opponentSocket = findSocketByPlayer(gameId, offer.opponentPlayerId);
+    opponentSocket?.emit("draw-offer-received", { from: offer.from });
   });
 
   socket.on("respond-draw-offer", ({ gameId, playerId, accept }) => {

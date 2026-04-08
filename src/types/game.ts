@@ -68,4 +68,5 @@ export type ClientToServerEvents = {
 export type ServerToClientEvents = {
   "game-state": (state: GameState) => void;
   "move-rejected": (payload: { reason: string }) => void;
+  "draw-offer-received": (payload: { from: PlayerColor }) => void;
 };

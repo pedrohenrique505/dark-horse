@@ -31,6 +31,7 @@ export function ChessBoard({ gameId }: Props) {
   const [pendingPremove, setPendingPremove] = useState<PendingPremove | null>(null);
   const [isResultModalOpen, setIsResultModalOpen] = useState(false);
   const [isResignConfirmOpen, setIsResignConfirmOpen] = useState(false);
+  const [isDrawOfferPopupOpen, setIsDrawOfferPopupOpen] = useState(false);
 
   const shareUrl = useMemo(() => {
     if (typeof window === "undefined") return "";
@@ -55,12 +56,10 @@ export function ChessBoard({ gameId }: Props) {
   );
   const canRespondToDraw = Boolean(
     state &&
-      currentPlayerId &&
       state.mode === "pvp" &&
       state.playerColor !== "spectator" &&
       !state.isGameOver &&
-      state.drawOfferFrom &&
-      state.drawOfferFrom !== state.playerColor,
+      state.drawOfferFrom,
   );
   const isWaitingDrawResponse = Boolean(
     state &&
@@ -96,10 +95,17 @@ export function ChessBoard({ gameId }: Props) {
       setError(null);
       if (nextState.isGameOver && nextState.result) {
         setIsResultModalOpen(true);
+        setIsDrawOfferPopupOpen(false);
+      }
+      if (!nextState.drawOfferFrom) {
+        setIsDrawOfferPopupOpen(false);
       }
     });
 
     socket.on("move-rejected", ({ reason }) => setError(reason));
+    socket.on("draw-offer-received", () => {
+      setIsDrawOfferPopupOpen(true);
+    });
 
     return () => {
       socket.disconnect();
@@ -313,7 +319,7 @@ export function ChessBoard({ gameId }: Props) {
         </div>
       ) : null}
 
-      {canRespondToDraw && state?.drawOfferFrom ? (
+      {isDrawOfferPopupOpen && canRespondToDraw && state?.drawOfferFrom ? (
         <aside className="draw-offer-popup">
           <p className="draw-offer-text">O adversário ofereceu empate.</p>
           <div className="draw-offer-actions">
