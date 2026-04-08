@@ -177,7 +177,7 @@ h1 {
   grid-template-columns: minmax(0, 1fr) clamp(11rem, 16vw, 13rem);
   align-items: stretch;
   justify-content: center;
-  gap: 1.5rem;
+  gap: 1rem;
   flex: 1;
   min-height: 0;
   width: 100%;
@@ -225,7 +225,7 @@ h1 {
 }
 
 .chess-board {
-  width: min(100cqw, 100cqh, 56rem);
+  width: min(100cqw, calc(100cqh - 1rem), 52rem);
   aspect-ratio: 1;
 }
 
@@ -235,7 +235,7 @@ h1 {
   justify-content: flex-start;
   gap: 0.75rem;
   align-self: center;
-  width: clamp(11rem, 16vw, 13rem);
+  width: clamp(10rem, 14vw, 12rem);
   border: 1px solid #2a3440;
   border-radius: 1rem;
   background: color-mix(in srgb, var(--panel), transparent 4%);
