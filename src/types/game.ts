@@ -16,6 +16,17 @@ export type GameResult = {
   reason: GameOverReason;
 };
 
+export type MoveHistoryEntry = {
+  ply: number;
+  moveNumber: number;
+  color: PlayerColor;
+  san: string;
+  from: string;
+  to: string;
+  beforeFen: string;
+  afterFen: string;
+};
+
 export type GameState = {
   id: string;
   mode: GameMode;
@@ -45,6 +56,7 @@ export type GameState = {
     white: string | null;
     black: string | null;
   };
+  moveHistory: MoveHistoryEntry[];
 };
 
 export type CreateGameRequest = {

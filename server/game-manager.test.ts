@@ -350,3 +350,30 @@ test("cada jogador pode pedir empate no máximo duas vezes", () => {
   assert.equal(state.drawRequests.white, 2);
   assert.equal(rejectedMoves.at(-1)?.reason, "Limite de solicitações de empate atingido.");
 });
+
+test("game-state expõe histórico com fen antes e depois de cada lance", () => {
+  const { manager } = createHarness();
+
+  const room = manager.createGame({ mode: "pvp" });
+  manager.joinGame(room.id, "white-player");
+  manager.joinGame(room.id, "black-player");
+
+  manager.makeMove({ gameId: room.id, playerId: "white-player", from: "e2", to: "e4" });
+  manager.makeMove({ gameId: room.id, playerId: "black-player", from: "e7", to: "e5" });
+
+  const state = manager.buildGameState(room.id, "white-player");
+  assert.ok(state);
+  assert.equal(state.moveHistory.length, 2);
+  assert.deepEqual(state.moveHistory[0], {
+    ply: 1,
+    moveNumber: 1,
+    color: "white",
+    san: "e4",
+    from: "e2",
+    to: "e4",
+    beforeFen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+    afterFen: "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1",
+  });
+  assert.equal(state.moveHistory[1]?.san, "e5");
+  assert.equal(state.moveHistory[1]?.afterFen, state.fen);
+});

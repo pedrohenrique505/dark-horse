@@ -6,6 +6,7 @@ import type {
   GameResult,
   GameMode,
   GameState,
+  MoveHistoryEntry,
   MovePayload,
   PlayerColor,
   PlayerRole,
@@ -307,6 +308,7 @@ export function createGameManager(deps: GameManagerDeps) {
         white: room.players.white ?? null,
         black: room.players.black ?? null,
       },
+      moveHistory: buildMoveHistory(room.chess),
     };
   }
 
@@ -370,6 +372,19 @@ function getOpponentPlayerId(room: GameRoom, playerId: string) {
   if (room.players.white === playerId) return room.players.black ?? null;
   if (room.players.black === playerId) return room.players.white ?? null;
   return null;
+}
+
+function buildMoveHistory(chess: Chess): MoveHistoryEntry[] {
+  return chess.history({ verbose: true }).map((move, index) => ({
+    ply: index + 1,
+    moveNumber: Math.floor(index / 2) + 1,
+    color: toColor(move.color),
+    san: move.san,
+    from: move.from,
+    to: move.to,
+    beforeFen: move.before,
+    afterFen: move.after,
+  }));
 }
 
 function getPlayerIdByColor(room: GameRoom, color: PlayerColor | null) {
