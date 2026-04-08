@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from "react";
 import { useRouter } from "next/navigation";
 import { Chessground } from "chessground";
 import type { Api } from "chessground/api";
@@ -90,7 +90,6 @@ export function ChessBoard({ gameId }: Props) {
   const topPlayer = getBoardSideLabel(state, boardOrientation === "white" ? "black" : "white");
   const bottomPlayer = getBoardSideLabel(state, boardOrientation);
   const displayedPosition = getDisplayedPosition(state, viewedPly);
-  const isViewingLivePosition = viewedPly === (state?.moveHistory.length ?? 0);
   const moveRows = groupMoveHistory(state?.moveHistory ?? []);
 
   useEffect(() => {
@@ -359,20 +358,6 @@ export function ChessBoard({ gameId }: Props) {
 
         {error ? <p className="error">{error}</p> : null}
 
-        {isResignConfirmOpen ? (
-          <aside className="side-confirm">
-            <p className="side-confirm-text">Tem certeza que deseja desistir da partida?</p>
-            <div className="side-confirm-actions">
-              <button type="button" onClick={confirmResign}>
-                Confirmar desistência
-              </button>
-              <button type="button" onClick={() => setIsResignConfirmOpen(false)}>
-                Cancelar
-              </button>
-            </div>
-          </aside>
-        ) : null}
-
         {isWaitingDrawResponse ? (
           <p className="game-note">Você ofereceu empate. Aguardando resposta do outro jogador.</p>
         ) : null}
@@ -382,7 +367,7 @@ export function ChessBoard({ gameId }: Props) {
         ) : null}
 
         <div className="board-layout">
-          <div className="board-wrap">
+          <div className="board-wrap" style={boardSize ? ({ "--board-size": `${boardSize}px` } as CSSProperties) : undefined}>
             <p className="board-player board-player-top">{topPlayer}</p>
             <div ref={boardStageRef} className="board-stage">
               <div
@@ -397,9 +382,6 @@ export function ChessBoard({ gameId }: Props) {
           <aside className="board-side-actions">
             <section className="history-panel">
               <p className="history-title">Histórico</p>
-              <p className="history-status">
-                {isViewingLivePosition ? "Posição atual" : `Visualizando o lance ${viewedPly}. Use ← e → para navegar.`}
-              </p>
               <div className="history-list">
                 {moveRows.length === 0 ? (
                   <p className="history-empty">Nenhum lance ainda.</p>
@@ -412,14 +394,49 @@ export function ChessBoard({ gameId }: Props) {
             </section>
 
             <div className="history-actions">
-              <p className="history-actions-title">Partida</p>
-              <button type="button" onClick={() => setIsResignConfirmOpen(true)} disabled={!canResign}>
-                Desistir
+              <button type="button" className="action-button" onClick={() => setIsResignConfirmOpen(true)} disabled={!canResign}>
+                <span className="action-button-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <path
+                      d="M7 4v16M7 5h9l-2.5 3L16 11H7"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="1.9"
+                    />
+                  </svg>
+                </span>
+                <span>Desistir</span>
               </button>
 
+              <div className={isResignConfirmOpen ? "action-confirm action-confirm-visible" : "action-confirm"}>
+                <p className="action-confirm-text">Tem certeza que deseja desistir da partida?</p>
+                <div className="action-confirm-actions">
+                  <button type="button" onClick={confirmResign}>
+                    Confirmar
+                  </button>
+                  <button type="button" onClick={() => setIsResignConfirmOpen(false)}>
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+
               {canOfferDraw ? (
-                <button type="button" onClick={offerDraw}>
-                  Pedir empate
+                <button type="button" className="action-button" onClick={offerDraw}>
+                  <span className="action-button-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24">
+                      <path
+                        d="M8 12 5.5 9.5a2.5 2.5 0 1 1 3.5-3.5L12 9l3-3a2.5 2.5 0 1 1 3.5 3.5L16 12M8 12l4 4 4-4M8 12l-1.5 1.5a2.5 2.5 0 1 0 3.5 3.5L12 15l2 2a2.5 2.5 0 1 0 3.5-3.5L16 12"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="1.8"
+                      />
+                    </svg>
+                  </span>
+                  <span>Pedir empate</span>
                 </button>
               ) : null}
 
