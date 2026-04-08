@@ -286,6 +286,10 @@ export function createGameManager(deps: GameManagerDeps) {
         white: Boolean(room.players.white),
         black: Boolean(room.players.black),
       },
+      playerIds: {
+        white: room.players.white ?? null,
+        black: room.players.black ?? null,
+      },
     };
   }
 

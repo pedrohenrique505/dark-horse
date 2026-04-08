@@ -37,6 +37,10 @@ export type GameState = {
     white: boolean;
     black: boolean;
   };
+  playerIds: {
+    white: string | null;
+    black: string | null;
+  };
 };
 
 export type CreateGameRequest = {
