@@ -94,6 +94,35 @@ export function ChessBoard({ gameId }: Props) {
   const moveRows = groupMoveHistory(state?.moveHistory ?? []);
 
   useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      const target = event.target;
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement ||
+        (target instanceof HTMLElement && target.isContentEditable)
+      ) {
+        return;
+      }
+
+      const livePly = state?.moveHistory.length ?? 0;
+
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        setViewedPly((current) => Math.max(0, current - 1));
+      }
+
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        setViewedPly((current) => Math.min(livePly, current + 1));
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [state]);
+
+  useEffect(() => {
     const playerId = getOrCreatePlayerId();
     playerIdRef.current = playerId;
 
@@ -366,38 +395,10 @@ export function ChessBoard({ gameId }: Props) {
           </div>
 
           <aside className="board-side-actions">
-            <button type="button" onClick={() => setIsResignConfirmOpen(true)} disabled={!canResign}>
-              Desistir
-            </button>
-
-            {state?.mode === "pvp" ? (
-              <button type="button" onClick={copyLink}>
-                Copiar link
-              </button>
-            ) : null}
-
-            {canOfferDraw ? (
-              <button type="button" onClick={offerDraw}>
-                Pedir empate
-              </button>
-            ) : null}
-
             <section className="history-panel">
               <p className="history-title">Histórico</p>
-              <div className="history-nav">
-                <button type="button" onClick={() => setViewedPly((current) => Math.max(0, current - 1))} disabled={viewedPly === 0}>
-                  Voltar
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setViewedPly((current) => Math.min(state?.moveHistory.length ?? 0, current + 1))}
-                  disabled={!state || viewedPly === state.moveHistory.length}
-                >
-                  Avançar
-                </button>
-              </div>
               <p className="history-status">
-                {isViewingLivePosition ? "Posição atual" : `Visualizando o lance ${viewedPly}`}
+                {isViewingLivePosition ? "Posição atual" : `Visualizando o lance ${viewedPly}. Use ← e → para navegar.`}
               </p>
               <div className="history-list">
                 {moveRows.length === 0 ? (
@@ -409,6 +410,24 @@ export function ChessBoard({ gameId }: Props) {
                 )}
               </div>
             </section>
+
+            <div className="history-actions">
+              <button type="button" onClick={() => setIsResignConfirmOpen(true)} disabled={!canResign}>
+                Desistir
+              </button>
+
+              {canOfferDraw ? (
+                <button type="button" onClick={offerDraw}>
+                  Pedir empate
+                </button>
+              ) : null}
+
+              {state?.mode === "pvp" ? (
+                <button type="button" onClick={copyLink}>
+                  Copiar link
+                </button>
+              ) : null}
+            </div>
           </aside>
         </div>
       </section>

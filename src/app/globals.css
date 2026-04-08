@@ -234,7 +234,7 @@ h1 {
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
-  gap: 0.75rem;
+  gap: 1rem;
   align-self: center;
   width: clamp(10rem, 14vw, 12rem);
   border: 1px solid #2a3440;
@@ -248,6 +248,8 @@ h1 {
   display: grid;
   gap: 0.75rem;
   min-height: 0;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #2a3440;
 }
 
 .history-title,
@@ -265,15 +267,10 @@ h1 {
   color: var(--muted);
 }
 
-.history-nav {
-  display: flex;
-  gap: 0.75rem;
-}
-
 .history-list {
   display: grid;
   gap: 0.5rem;
-  max-height: 16rem;
+  max-height: 18rem;
   overflow: auto;
 }
 
@@ -293,10 +290,17 @@ h1 {
   width: 100%;
   padding: 0.55rem 0.75rem;
   text-align: left;
+  background: #0f151b;
+  color: var(--text);
 }
 
 .history-move-active {
   outline: 2px solid #f2f5f7;
+}
+
+.history-actions {
+  display: grid;
+  gap: 0.75rem;
 }
 
 .board-player {
@@ -387,10 +391,6 @@ h1 {
   .board-side-actions {
     width: 100%;
     align-self: stretch;
-  }
-
-  .history-nav {
-    flex-direction: column;
   }
 
   .join-form div,
