@@ -1,8 +1,10 @@
 export type PlayerColor = "white" | "black";
 export type PlayerRole = PlayerColor | "spectator";
+export type GameMode = "pvp" | "vs-bot";
 
 export type GameState = {
   id: string;
+  mode: GameMode;
   fen: string;
   pgn: string;
   turn: PlayerColor;
@@ -12,11 +14,16 @@ export type GameState = {
   isCheckmate: boolean;
   isDraw: boolean;
   isGameOver: boolean;
+  isBotThinking: boolean;
   connected: boolean;
   players: {
     white: boolean;
     black: boolean;
   };
+};
+
+export type CreateGameRequest = {
+  mode?: GameMode;
 };
 
 export type MovePayload = {

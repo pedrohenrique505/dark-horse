@@ -2,15 +2,22 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+import type { GameMode } from "@/types/game";
 
 export default function HomePage() {
   const router = useRouter();
   const [gameId, setGameId] = useState("");
   const [loading, setLoading] = useState(false);
 
-  async function createGame() {
+  async function createGame(mode: GameMode) {
     setLoading(true);
-    const response = await fetch("/api/games", { method: "POST" });
+    const response = await fetch("/api/games", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ mode }),
+    });
     const data = (await response.json()) as { id: string };
     router.push(`/game/${data.id}`);
   }
@@ -26,11 +33,20 @@ export default function HomePage() {
       <section className="panel home-panel">
         <p className="eyebrow">MVP</p>
         <h1>Dark Horse Chess</h1>
-        <p className="lead">Crie uma partida e envie o link para outro jogador entrar em tempo real.</p>
+        <p className="lead">
+          Crie uma partida para jogar online com outra pessoa ou inicie uma partida simples contra o
+          Stockfish.
+        </p>
 
-        <button type="button" onClick={createGame} disabled={loading}>
-          {loading ? "Criando..." : "Criar partida"}
-        </button>
+        <div className="home-actions">
+          <button type="button" onClick={() => createGame("pvp")} disabled={loading}>
+            {loading ? "Criando..." : "Criar partida online"}
+          </button>
+
+          <button type="button" onClick={() => createGame("vs-bot")} disabled={loading}>
+            {loading ? "Criando..." : "Jogar contra Stockfish"}
+          </button>
+        </div>
 
         <form onSubmit={joinGame} className="join-form">
           <label htmlFor="gameId">Entrar com ID da partida</label>
