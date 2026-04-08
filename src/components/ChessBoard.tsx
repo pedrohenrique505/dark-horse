@@ -387,29 +387,19 @@ export function ChessBoard({ gameId }: Props) {
               <img className="board-player-avatar" src={topPlayerAvatar.src} alt={topPlayerAvatar.alt} />
               <span className="board-player-name">{topPlayer}</span>
             </div>
-            <div className="board-stage">
+            <div ref={boardStageRef} className="board-stage">
               <div className="board-frame">
-                <div className="board-files board-files-top" aria-hidden="true">
-                  {boardFiles.map((file) => (
-                    <span key={`top-${file}`}>{file}</span>
-                  ))}
-                </div>
                 <div className="board-ranks board-ranks-left" aria-hidden="true">
                   {boardRanks.map((rank) => (
                     <span key={`left-${rank}`}>{rank}</span>
                   ))}
                 </div>
-                <div ref={boardStageRef} className="board-core">
+                <div className="board-core">
                   <div
                     ref={boardRef}
                     className="chess-board"
                     style={boardSize ? { width: `${boardSize}px`, height: `${boardSize}px` } : undefined}
                   />
-                </div>
-                <div className="board-ranks board-ranks-right" aria-hidden="true">
-                  {boardRanks.map((rank) => (
-                    <span key={`right-${rank}`}>{rank}</span>
-                  ))}
                 </div>
                 <div className="board-files board-files-bottom" aria-hidden="true">
                   {boardFiles.map((file) => (
