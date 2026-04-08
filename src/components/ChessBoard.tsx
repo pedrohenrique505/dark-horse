@@ -30,6 +30,7 @@ export function ChessBoard({ gameId }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [pendingPremove, setPendingPremove] = useState<PendingPremove | null>(null);
   const [isResultModalOpen, setIsResultModalOpen] = useState(false);
+  const [isResignConfirmOpen, setIsResignConfirmOpen] = useState(false);
 
   const shareUrl = useMemo(() => {
     if (typeof window === "undefined") return "";
@@ -60,6 +61,13 @@ export function ChessBoard({ gameId }: Props) {
       !state.isGameOver &&
       state.drawOfferFrom &&
       state.drawOfferFrom !== state.playerColor,
+  );
+  const isWaitingDrawResponse = Boolean(
+    state &&
+      state.mode === "pvp" &&
+      state.playerColor !== "spectator" &&
+      !state.isGameOver &&
+      state.drawOfferFrom === state.playerColor,
   );
   const canResign = Boolean(state && state.playerColor !== "spectator" && !state.isGameOver);
   const resultReason = state?.result?.reason ?? null;
@@ -197,6 +205,12 @@ export function ChessBoard({ gameId }: Props) {
     }
   }, [isGameOver, resultReason, resultWinner]);
 
+  useEffect(() => {
+    if (isGameOver) {
+      setIsResignConfirmOpen(false);
+    }
+  }, [isGameOver]);
+
   async function copyLink() {
     await navigator.clipboard.writeText(shareUrl);
   }
@@ -205,12 +219,13 @@ export function ChessBoard({ gameId }: Props) {
     router.push("/");
   }
 
-  function resignGame() {
+  function confirmResign() {
     const socket = socketRef.current;
     const playerId = playerIdRef.current;
     if (!socket || !playerId) return;
 
     socket.emit("resign", { gameId, playerId });
+    setIsResignConfirmOpen(false);
   }
 
   function offerDraw() {
@@ -248,11 +263,7 @@ export function ChessBoard({ gameId }: Props) {
         {error ? <p className="error">{error}</p> : null}
 
         <div className="game-actions">
-          <button
-            type="button"
-            onClick={resignGame}
-            disabled={!canResign}
-          >
+          <button type="button" onClick={() => setIsResignConfirmOpen(true)} disabled={!canResign}>
             Desistir
           </button>
 
@@ -262,20 +273,24 @@ export function ChessBoard({ gameId }: Props) {
             </button>
           ) : null}
 
-          {canRespondToDraw ? (
-            <>
-              <button type="button" onClick={() => respondToDrawOffer(true)}>
-                Aceitar empate
-              </button>
-              <button type="button" onClick={() => respondToDrawOffer(false)}>
-                Recusar empate
-              </button>
-            </>
-          ) : null}
         </div>
 
-        {state?.drawOfferFrom ? (
-          <p className="game-note">{getDrawOfferText(state)}</p>
+        {isResignConfirmOpen ? (
+          <aside className="side-confirm">
+            <p className="side-confirm-text">Tem certeza que deseja desistir da partida?</p>
+            <div className="side-confirm-actions">
+              <button type="button" onClick={confirmResign}>
+                Confirmar desistência
+              </button>
+              <button type="button" onClick={() => setIsResignConfirmOpen(false)}>
+                Cancelar
+              </button>
+            </div>
+          </aside>
+        ) : null}
+
+        {isWaitingDrawResponse ? (
+          <p className="game-note">Você ofereceu empate. Aguardando resposta do outro jogador.</p>
         ) : null}
 
         <div className="board-wrap">
@@ -293,14 +308,28 @@ export function ChessBoard({ gameId }: Props) {
             <p className="lead modal-text">{getResultDescription(state.result, state.playerColor)}</p>
             <div className="modal-actions">
               <button type="button" onClick={goHome}>
-                Voltar para home
+                Nova partida
               </button>
               <button type="button" onClick={goHome}>
-                Nova partida
+                Voltar para a home
               </button>
             </div>
           </section>
         </div>
+      ) : null}
+
+      {canRespondToDraw && state?.drawOfferFrom ? (
+        <aside className="draw-offer-popup">
+          <p className="draw-offer-text">O adversário ofereceu empate.</p>
+          <div className="draw-offer-actions">
+            <button type="button" onClick={() => respondToDrawOffer(true)}>
+              Aceitar
+            </button>
+            <button type="button" onClick={() => respondToDrawOffer(false)}>
+              Negar
+            </button>
+          </div>
+        </aside>
       ) : null}
     </main>
   );
@@ -319,10 +348,18 @@ function getMovableColor(state: GameState, canInteractWithBoard: boolean): Playe
 }
 
 function getResultTitle(result: GameResult, playerColor: GameState["playerColor"]) {
-  if (playerColor !== "spectator" && result.winner === playerColor) return "Você venceu";
-  if (playerColor !== "spectator" && result.winner && result.winner !== playerColor) return "Você perdeu";
-  if (result.winner === "white") return "Vitória das brancas";
-  if (result.winner === "black") return "Vitória das pretas";
+  if (result.reason === "agreed-draw") return "Empate por acordo";
+  if (result.reason === "draw") return "Empate";
+  if (result.reason === "checkmate") {
+    return result.winner === "white"
+      ? "Vitória das brancas por xeque-mate"
+      : "Vitória das pretas por xeque-mate";
+  }
+  if (result.reason === "resign") {
+    return result.winner === "white"
+      ? "Vitória das brancas por desistência"
+      : "Vitória das pretas por desistência";
+  }
   return "Empate";
 }
 
@@ -331,7 +368,7 @@ function getResultDescription(result: GameResult, playerColor: GameState["player
     playerColor !== "spectator" && result.winner ? result.winner === playerColor : null;
 
   if (result.reason === "resign") {
-    if (perspectiveWinner === true) return "O outro lado desistiu. Vitória sua.";
+    if (perspectiveWinner === true) return "O outro lado desistiu da partida.";
     if (perspectiveWinner === false) return "Você desistiu da partida.";
     return result.winner === "white"
       ? "As pretas desistiram. Vitória das brancas."
@@ -351,16 +388,6 @@ function getResultDescription(result: GameResult, playerColor: GameState["player
   }
 
   return "Partida empatada.";
-}
-
-function getDrawOfferText(state: GameState) {
-  if (!state.drawOfferFrom) return "";
-
-  if (state.playerColor === state.drawOfferFrom) {
-    return "Você ofereceu empate. Aguardando resposta do outro jogador.";
-  }
-
-  return `As ${roleLabel(state.drawOfferFrom)} ofereceram empate.`;
 }
 
 function getBoardSideLabel(state: GameState | null, color: PlayerColor) {

@@ -130,7 +130,9 @@ h1 {
 .game-header,
 .header-actions,
 .game-actions,
-.modal-actions {
+.modal-actions,
+.side-confirm-actions,
+.draw-offer-actions {
   display: flex;
   gap: 0.75rem;
 }
@@ -142,7 +144,9 @@ h1 {
 
 .header-actions,
 .game-actions,
-.modal-actions {
+.modal-actions,
+.side-confirm-actions,
+.draw-offer-actions {
   flex-wrap: wrap;
 }
 
@@ -163,6 +167,19 @@ h1 {
 .game-note {
   color: var(--muted);
   margin: 0.75rem 0 0;
+}
+
+.side-confirm {
+  margin-top: 1rem;
+  border: 1px solid #2d3946;
+  border-radius: 0.9rem;
+  background: #11181f;
+  padding: 1rem;
+}
+
+.side-confirm-text {
+  margin: 0 0 0.75rem;
+  color: var(--text);
 }
 
 .chess-board {
@@ -215,6 +232,23 @@ h1 {
   margin: 0 0 1rem;
 }
 
+.draw-offer-popup {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  width: min(100%, 22rem);
+  border: 1px solid #2d3946;
+  border-radius: 0.9rem;
+  background: var(--panel);
+  box-shadow: 0 1rem 2.5rem rgb(0 0 0 / 35%);
+  padding: 1rem;
+}
+
+.draw-offer-text {
+  margin: 0 0 0.75rem;
+  color: var(--text);
+}
+
 @media (max-width: 640px) {
   .page {
     padding: 1rem;
@@ -228,7 +262,9 @@ h1 {
   .game-header,
   .header-actions,
   .game-actions,
-  .modal-actions {
+  .modal-actions,
+  .side-confirm-actions,
+  .draw-offer-actions {
     flex-direction: column;
   }
 
