@@ -77,6 +77,18 @@ io.on("connection", (socket) => {
     gameManager.makeMove(payload);
   });
 
+  socket.on("resign", ({ gameId, playerId }) => {
+    gameManager.resignGame(gameId, playerId);
+  });
+
+  socket.on("offer-draw", ({ gameId, playerId }) => {
+    gameManager.offerDraw(gameId, playerId);
+  });
+
+  socket.on("respond-draw-offer", ({ gameId, playerId, accept }) => {
+    gameManager.respondToDrawOffer(gameId, playerId, accept);
+  });
+
   socket.on("disconnect", () => {
     const session = socketSessions.get(socket.id);
     socketSessions.delete(socket.id);

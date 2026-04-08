@@ -218,3 +218,84 @@ test("rejeita spam de jogadas humanas enquanto o bot está pensando", () => {
 
   assert.equal(rejectedMoves.at(-1)?.reason, "Aguarde a resposta do Stockfish.");
 });
+
+test("resign encerra a partida no pvp com vitória do adversário", () => {
+  const { manager } = createHarness();
+
+  const room = manager.createGame({ mode: "pvp" });
+  manager.joinGame(room.id, "white-player");
+  manager.joinGame(room.id, "black-player");
+  manager.resignGame(room.id, "white-player");
+
+  const whiteState = manager.buildGameState(room.id, "white-player");
+  assert.ok(whiteState);
+  assert.equal(whiteState.isGameOver, true);
+  assert.deepEqual(whiteState.result, {
+    winner: "black",
+    reason: "resign",
+  });
+});
+
+test("resign encerra a partida no vs-bot com vitória do Stockfish", () => {
+  const { manager } = createHarness();
+
+  const room = manager.createGame({ mode: "vs-bot", humanColor: "white" });
+  manager.joinGame(room.id, "human-1");
+  manager.resignGame(room.id, "human-1");
+
+  const state = manager.buildGameState(room.id, "human-1");
+  assert.ok(state);
+  assert.equal(state.isGameOver, true);
+  assert.deepEqual(state.result, {
+    winner: "black",
+    reason: "resign",
+  });
+});
+
+test("pvp permite oferecer empate e aceitar", () => {
+  const { manager } = createHarness();
+
+  const room = manager.createGame({ mode: "pvp" });
+  manager.joinGame(room.id, "white-player");
+  manager.joinGame(room.id, "black-player");
+
+  manager.offerDraw(room.id, "white-player");
+  const pendingState = manager.buildGameState(room.id, "black-player");
+  assert.ok(pendingState);
+  assert.equal(pendingState.drawOfferFrom, "white");
+
+  manager.respondToDrawOffer(room.id, "black-player", true);
+  const finalState = manager.buildGameState(room.id, "white-player");
+  assert.ok(finalState);
+  assert.equal(finalState.isGameOver, true);
+  assert.deepEqual(finalState.result, {
+    winner: null,
+    reason: "agreed-draw",
+  });
+});
+
+test("pvp permite recusar empate e continuar a partida", () => {
+  const { manager } = createHarness();
+
+  const room = manager.createGame({ mode: "pvp" });
+  manager.joinGame(room.id, "white-player");
+  manager.joinGame(room.id, "black-player");
+
+  manager.offerDraw(room.id, "white-player");
+  manager.respondToDrawOffer(room.id, "black-player", false);
+
+  const state = manager.buildGameState(room.id, "white-player");
+  assert.ok(state);
+  assert.equal(state.isGameOver, false);
+  assert.equal(state.drawOfferFrom, undefined);
+});
+
+test("não permite oferecer empate no vs-bot", () => {
+  const { manager, rejectedMoves } = createHarness();
+
+  const room = manager.createGame({ mode: "vs-bot", humanColor: "white" });
+  manager.joinGame(room.id, "human-1");
+  manager.offerDraw(room.id, "human-1");
+
+  assert.equal(rejectedMoves.at(-1)?.reason, "Pedido de empate só existe no modo online.");
+});

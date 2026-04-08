@@ -3,6 +3,7 @@ import type {
   BotDifficulty,
   BotSettings,
   CreateGameRequest,
+  GameResult,
   GameMode,
   GameState,
   MovePayload,
@@ -26,6 +27,8 @@ export type GameRoom = {
   bot: BotSettings | null;
   chess: Chess;
   players: PlayerSlots;
+  result: GameResult | null;
+  drawOfferFrom: PlayerColor | null;
   isBotThinking: boolean;
   nextBotRequestId: number;
   activeBotRequest: BotRequestContext | null;
@@ -55,6 +58,8 @@ export function createGameManager(deps: GameManagerDeps) {
       bot,
       chess: new Chess(),
       players: createInitialPlayers(mode, bot),
+      result: null,
+      drawOfferFrom: null,
       isBotThinking: false,
       nextBotRequestId: 0,
       activeBotRequest: null,
@@ -84,6 +89,8 @@ export function createGameManager(deps: GameManagerDeps) {
       bot: null,
       chess: new Chess(),
       players: {},
+      result: null,
+      drawOfferFrom: null,
       isBotThinking: false,
       nextBotRequestId: 0,
       activeBotRequest: null,
@@ -117,6 +124,11 @@ export function createGameManager(deps: GameManagerDeps) {
       return;
     }
 
+    if (isGameFinished(room)) {
+      deps.emitMoveRejected(payload.gameId, payload.playerId, "A partida já terminou.");
+      return;
+    }
+
     if (room.chess.turn() !== toTurn(color)) {
       deps.emitMoveRejected(payload.gameId, payload.playerId, "Ainda não é a sua vez.");
       return;
@@ -130,6 +142,7 @@ export function createGameManager(deps: GameManagerDeps) {
       });
 
       if (!move) throw new Error("Jogada inválida.");
+      clearDrawOffer(room);
 
       if (shouldBotPlay(room)) {
         const request = startBotRequest(room, payload.playerId);
@@ -143,6 +156,103 @@ export function createGameManager(deps: GameManagerDeps) {
       deps.emitMoveRejected(payload.gameId, payload.playerId, "Jogada ilegal rejeitada pelo servidor.");
       deps.emitPlayerState(payload.gameId, payload.playerId);
     }
+  }
+
+  function resignGame(gameId: string, playerId: string) {
+    const room = games.get(gameId);
+    if (!room) {
+      deps.emitMoveRejected(gameId, playerId, "Partida não encontrada.");
+      return;
+    }
+
+    const color = findPlayerColor(room, playerId);
+    if (color === "spectator") {
+      deps.emitMoveRejected(gameId, playerId, "Espectadores não podem desistir.");
+      return;
+    }
+
+    if (isGameFinished(room)) {
+      deps.emitMoveRejected(gameId, playerId, "A partida já terminou.");
+      return;
+    }
+
+    finishGame(room, {
+      winner: oppositeColor(color),
+      reason: "resign",
+    });
+    deps.emitRoomState(gameId);
+  }
+
+  function offerDraw(gameId: string, playerId: string) {
+    const room = games.get(gameId);
+    if (!room) {
+      deps.emitMoveRejected(gameId, playerId, "Partida não encontrada.");
+      return;
+    }
+
+    if (room.mode !== "pvp") {
+      deps.emitMoveRejected(gameId, playerId, "Pedido de empate só existe no modo online.");
+      return;
+    }
+
+    const color = findPlayerColor(room, playerId);
+    if (color === "spectator") {
+      deps.emitMoveRejected(gameId, playerId, "Espectadores não podem oferecer empate.");
+      return;
+    }
+
+    if (isGameFinished(room)) {
+      deps.emitMoveRejected(gameId, playerId, "A partida já terminou.");
+      return;
+    }
+
+    if (room.drawOfferFrom) {
+      deps.emitMoveRejected(gameId, playerId, "Já existe um pedido de empate pendente.");
+      return;
+    }
+
+    room.drawOfferFrom = color;
+    deps.emitRoomState(gameId);
+  }
+
+  function respondToDrawOffer(gameId: string, playerId: string, accept: boolean) {
+    const room = games.get(gameId);
+    if (!room) {
+      deps.emitMoveRejected(gameId, playerId, "Partida não encontrada.");
+      return;
+    }
+
+    const color = findPlayerColor(room, playerId);
+    if (color === "spectator") {
+      deps.emitMoveRejected(gameId, playerId, "Espectadores não podem responder ao empate.");
+      return;
+    }
+
+    if (!room.drawOfferFrom) {
+      deps.emitMoveRejected(gameId, playerId, "Não existe pedido de empate pendente.");
+      return;
+    }
+
+    if (room.drawOfferFrom === color) {
+      deps.emitMoveRejected(gameId, playerId, "Você não pode responder ao seu próprio pedido.");
+      return;
+    }
+
+    if (isGameFinished(room)) {
+      deps.emitMoveRejected(gameId, playerId, "A partida já terminou.");
+      return;
+    }
+
+    if (accept) {
+      finishGame(room, {
+        winner: null,
+        reason: "agreed-draw",
+      });
+    } else {
+      clearDrawOffer(room);
+    }
+
+    deps.emitRoomState(gameId);
   }
 
   function handleDisconnect(gameId: string) {
@@ -165,9 +275,11 @@ export function createGameManager(deps: GameManagerDeps) {
       playerColor: findPlayerColor(room, playerId),
       lastMove: lastMove(room.chess),
       isCheck: room.chess.isCheck(),
-      isCheckmate: room.chess.isCheckmate(),
-      isDraw: room.chess.isDraw(),
-      isGameOver: room.chess.isGameOver(),
+      isCheckmate: getGameResult(room)?.reason === "checkmate",
+      isDraw: isDrawResult(room),
+      isGameOver: isGameFinished(room),
+      result: getGameResult(room) ?? undefined,
+      drawOfferFrom: room.drawOfferFrom ?? undefined,
       isBotThinking: room.isBotThinking,
       connected: true,
       players: {
@@ -214,7 +326,7 @@ export function createGameManager(deps: GameManagerDeps) {
     if (room.mode !== "vs-bot") return null;
     if (!room.isBotThinking) return null;
     if (!isCurrentBotRequest(room, request)) return null;
-    if (room.chess.isGameOver()) return null;
+    if (isGameFinished(room)) return null;
     if (room.chess.turn() !== toTurn(getBotColor(room))) return null;
     if (room.chess.fen() !== request.fen) return null;
     return room;
@@ -225,6 +337,9 @@ export function createGameManager(deps: GameManagerDeps) {
     getRoom,
     joinGame,
     makeMove,
+    resignGame,
+    offerDraw,
+    respondToDrawOffer,
     handleDisconnect,
     buildGameState,
   };
@@ -279,7 +394,7 @@ function lastMove(chess: Chess): [string, string] | undefined {
 }
 
 function shouldBotPlay(room: GameRoom): boolean {
-  return room.mode === "vs-bot" && !room.chess.isGameOver() && room.chess.turn() === toTurn(getBotColor(room));
+  return room.mode === "vs-bot" && !isGameFinished(room) && room.chess.turn() === toTurn(getBotColor(room));
 }
 
 function startBotRequest(room: GameRoom, playerId: string | null): BotRequestContext {
@@ -315,6 +430,46 @@ function applyBotMove(room: GameRoom, move: EngineMove) {
   }
 }
 
+function isGameFinished(room: GameRoom) {
+  return getGameResult(room) !== null;
+}
+
+function isDrawResult(room: GameRoom) {
+  const result = getGameResult(room);
+  return result?.winner === null && (result.reason === "draw" || result.reason === "agreed-draw");
+}
+
+function getGameResult(room: GameRoom): GameResult | null {
+  if (room.result) return room.result;
+
+  if (room.chess.isCheckmate()) {
+    return {
+      winner: oppositeColor(toColor(room.chess.turn())),
+      reason: "checkmate",
+    };
+  }
+
+  if (room.chess.isDraw()) {
+    return {
+      winner: null,
+      reason: "draw",
+    };
+  }
+
+  return null;
+}
+
+function finishGame(room: GameRoom, result: GameResult) {
+  room.result = result;
+  clearDrawOffer(room);
+  room.activeBotRequest = null;
+  room.isBotThinking = false;
+}
+
+function clearDrawOffer(room: GameRoom) {
+  room.drawOfferFrom = null;
+}
+
 function buildBotSettings(request: CreateGameRequest, random: () => number): BotSettings {
   return {
     difficulty: request.botDifficulty ?? "medium",
@@ -342,6 +497,10 @@ function getBotColorFromSettings(bot: BotSettings | null): PlayerColor {
 
 function getBotDifficulty(room: GameRoom): BotDifficulty {
   return room.bot?.difficulty ?? "medium";
+}
+
+function oppositeColor(color: PlayerColor): PlayerColor {
+  return color === "white" ? "black" : "white";
 }
 
 function getDifficultyConfig(difficulty: BotDifficulty) {
