@@ -45,6 +45,8 @@ npm run test:server
 7. Use o botão direito no tabuleiro para desenhar setas.
 8. Recarregue a página da partida e confirme que ela reconecta na mesma sala.
 9. Teste `Pedir empate`, `Aceitar empate`, `Recusar empate` e `Desistir`.
+10. Recuse dois pedidos de empate e confirme que o solicitante vê o aviso de recusa.
+11. Tente pedir empate uma terceira vez com o mesmo jogador e confirme que o servidor bloqueia a ação.
 
 ## Como testar o modo vs-bot
 
@@ -56,6 +58,7 @@ npm run test:server
 6. Se você jogar de `black`, confirme que o bot faz a primeira jogada no servidor antes da sua vez.
 7. Aguarde a resposta e confirme que o tabuleiro recebe a jogada automática do Stockfish.
 8. Teste o botão `Desistir` e confirme que o modal mostra a vitória do Stockfish.
+9. Faça uma jogada normal, uma captura e o fim da partida para validar os sons simples do tabuleiro.
 
 ## Estrutura de pastas
 
@@ -74,5 +77,5 @@ npm run test:server
 
 - Melhorar presença para distinguir jogador ocupado de jogador realmente conectado.
 - Adicionar escolha de promoção em vez de promover automaticamente para dama.
+- Refinar os sons e permitir desligar áudio.
 - Persistir partidas em banco depois que o fluxo em memória estiver estável.
-- Adicionar relógio, resign, draw offer e histórico visual de lances.

@@ -169,6 +169,15 @@ h1 {
   margin: 0.75rem 0 0;
 }
 
+.game-status-banner {
+  margin-top: 1rem;
+  border: 1px solid #2d3946;
+  border-radius: 0.9rem;
+  background: #11181f;
+  color: var(--text);
+  padding: 0.9rem 1rem;
+}
+
 .side-confirm {
   margin-top: 1rem;
   border: 1px solid #2d3946;
@@ -236,7 +245,7 @@ h1 {
   position: fixed;
   right: 1rem;
   bottom: 1rem;
-  width: min(100%, 22rem);
+  width: min(calc(100vw - 2rem), 22rem);
   border: 1px solid #2d3946;
   border-radius: 0.9rem;
   background: var(--panel);
@@ -258,6 +267,14 @@ h1 {
     padding: 1rem;
   }
 
+  .board-wrap {
+    justify-items: stretch;
+  }
+
+  .chess-board {
+    width: min(100vw - 2rem, 70vh);
+  }
+
   .join-form div,
   .game-header,
   .header-actions,
@@ -270,5 +287,11 @@ h1 {
 
   .bot-options {
     grid-template-columns: 1fr;
+  }
+
+  .draw-offer-popup {
+    right: 0.75rem;
+    bottom: 0.75rem;
+    width: calc(100vw - 1.5rem);
   }
 }

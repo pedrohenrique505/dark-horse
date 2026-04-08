@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { useRouter } from "next/navigation";
 import { Chessground } from "chessground";
 import type { Api } from "chessground/api";
@@ -32,6 +32,9 @@ export function ChessBoard({ gameId }: Props) {
   const [isResultModalOpen, setIsResultModalOpen] = useState(false);
   const [isResignConfirmOpen, setIsResignConfirmOpen] = useState(false);
   const [isDrawOfferPopupOpen, setIsDrawOfferPopupOpen] = useState(false);
+  const [drawFeedback, setDrawFeedback] = useState<string | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const previousStateRef = useRef<GameState | null>(null);
 
   const shareUrl = useMemo(() => {
     if (typeof window === "undefined") return "";
@@ -52,7 +55,8 @@ export function ChessBoard({ gameId }: Props) {
       state.mode === "pvp" &&
       state.playerColor !== "spectator" &&
       !state.isGameOver &&
-      !state.drawOfferFrom,
+      !state.drawOfferFrom &&
+      state.drawRequests[state.playerColor] < 2,
   );
   const canRespondToDraw = Boolean(
     state &&
@@ -91,6 +95,7 @@ export function ChessBoard({ gameId }: Props) {
     });
 
     socket.on("game-state", (nextState) => {
+      const previousState = previousStateRef.current;
       setState(nextState);
       setError(null);
       if (nextState.isGameOver && nextState.result) {
@@ -100,11 +105,16 @@ export function ChessBoard({ gameId }: Props) {
       if (!nextState.drawOfferFrom) {
         setIsDrawOfferPopupOpen(false);
       }
+      playStateSound(previousState, nextState, audioContextRef);
+      previousStateRef.current = nextState;
     });
 
     socket.on("move-rejected", ({ reason }) => setError(reason));
     socket.on("draw-offer-received", () => {
       setIsDrawOfferPopupOpen(true);
+    });
+    socket.on("draw-offer-declined", () => {
+      setDrawFeedback("Seu pedido de empate foi recusado.");
     });
 
     return () => {
@@ -212,6 +222,16 @@ export function ChessBoard({ gameId }: Props) {
     }
   }, [isGameOver]);
 
+  useEffect(() => {
+    if (!drawFeedback) return;
+
+    const timeout = window.setTimeout(() => {
+      setDrawFeedback(null);
+    }, 3000);
+
+    return () => window.clearTimeout(timeout);
+  }, [drawFeedback]);
+
   async function copyLink() {
     await navigator.clipboard.writeText(shareUrl);
   }
@@ -292,6 +312,16 @@ export function ChessBoard({ gameId }: Props) {
 
         {isWaitingDrawResponse ? (
           <p className="game-note">Você ofereceu empate. Aguardando resposta do outro jogador.</p>
+        ) : null}
+
+        {drawFeedback ? (
+          <p className="game-note">{drawFeedback}</p>
+        ) : null}
+
+        {state ? (
+          <div className="game-status-banner">
+            {getStatusMessage(state)}
+          </div>
         ) : null}
 
         <div className="board-wrap">
@@ -399,4 +429,75 @@ function getBoardSideLabel(state: GameState | null, color: PlayerColor) {
   }
 
   return color === "white" ? "Player 1" : "Player 2";
+}
+
+function getStatusMessage(state: GameState) {
+  if (state.result) return getResultTitle(state.result, state.playerColor);
+  if (state.mode === "vs-bot" && state.isBotThinking) return "Stockfish está pensando...";
+  if (state.isCheck) return `Xeque nas ${roleLabel(state.turn)}.`;
+  return `Vez das ${roleLabel(state.turn)}.`;
+}
+
+function playStateSound(
+  previousState: GameState | null,
+  nextState: GameState,
+  audioContextRef: RefObject<AudioContext | null>,
+) {
+  if (!previousState) return;
+  if (previousState.fen === nextState.fen) return;
+
+  const isGameOverNow = !previousState.isGameOver && nextState.isGameOver;
+  if (isGameOverNow) {
+    playTone(audioContextRef, 520, 0.28, "triangle");
+    return;
+  }
+
+  const previousPieces = countPieces(previousState.fen);
+  const nextPieces = countPieces(nextState.fen);
+  const isCapture = nextPieces < previousPieces;
+
+  if (isCapture) {
+    playTone(audioContextRef, 280, 0.12, "square");
+    return;
+  }
+
+  playTone(audioContextRef, 420, 0.1, "sine");
+}
+
+function countPieces(fen: string) {
+  return fen.split(" ")[0].replace(/\//g, "").replace(/[1-8]/g, "").length;
+}
+
+function playTone(
+  audioContextRef: RefObject<AudioContext | null>,
+  frequency: number,
+  duration: number,
+  type: OscillatorType,
+) {
+  if (typeof window === "undefined") return;
+
+  const AudioContextClass = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!AudioContextClass) return;
+
+  const context = audioContextRef.current ?? new AudioContextClass();
+  audioContextRef.current = context;
+
+  if (context.state === "suspended") {
+    void context.resume();
+  }
+
+  const oscillator = context.createOscillator();
+  const gainNode = context.createGain();
+  const now = context.currentTime;
+
+  oscillator.type = type;
+  oscillator.frequency.setValueAtTime(frequency, now);
+  gainNode.gain.setValueAtTime(0.0001, now);
+  gainNode.gain.exponentialRampToValueAtTime(0.08, now + 0.02);
+  gainNode.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+  oscillator.connect(gainNode);
+  gainNode.connect(context.destination);
+  oscillator.start(now);
+  oscillator.stop(now + duration);
 }
