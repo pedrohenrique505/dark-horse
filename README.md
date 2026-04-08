@@ -39,11 +39,12 @@ npm run test:server
 2. Clique em `Criar partida online`.
 3. Copie o link da partida.
 4. Abra o link em outro navegador ou aba anônima.
-4. Faça uma jogada com as brancas e confirme que ela aparece para as pretas.
+5. Faça uma jogada com as brancas e confirme que ela aparece para as pretas.
 5. Tente uma jogada ilegal e veja que o servidor rejeita.
 6. Quando não for sua vez, selecione uma peça sua e faça um pre-move básico.
 7. Use o botão direito no tabuleiro para desenhar setas.
 8. Recarregue a página da partida e confirme que ela reconecta na mesma sala.
+9. Teste `Pedir empate`, `Aceitar empate`, `Recusar empate` e `Desistir`.
 
 ## Como testar o modo vs-bot
 
@@ -54,6 +55,7 @@ npm run test:server
 5. Se você jogar de `white`, faça uma jogada e confirme que o status mostra `Stockfish está pensando...`.
 6. Se você jogar de `black`, confirme que o bot faz a primeira jogada no servidor antes da sua vez.
 7. Aguarde a resposta e confirme que o tabuleiro recebe a jogada automática do Stockfish.
+8. Teste o botão `Desistir` e confirme que o modal mostra a vitória do Stockfish.
 
 ## Estrutura de pastas
 
@@ -63,7 +65,7 @@ npm run test:server
 - `server/services/stockfish.ts`: serviço simples para pedir uma jogada ao Stockfish.
 - `src/app/page.tsx`: tela inicial para criar ou entrar em uma partida.
 - `src/app/game/[id]/page.tsx`: rota da partida.
-- `src/components/ChessBoard.tsx`: integração do cliente com Chessground e Socket.IO.
+- `src/components/ChessBoard.tsx`: integração do cliente com Chessground, Socket.IO e ações simples da partida.
 - `src/lib/chess.ts`: helpers simples para destinos legais e promoção.
 - `src/lib/player.ts`: persistência local do ID do jogador para reconexão básica.
 - `src/types/game.ts`: tipos compartilhados entre cliente e servidor.

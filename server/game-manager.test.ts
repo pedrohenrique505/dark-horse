@@ -299,3 +299,15 @@ test("não permite oferecer empate no vs-bot", () => {
 
   assert.equal(rejectedMoves.at(-1)?.reason, "Pedido de empate só existe no modo online.");
 });
+
+test("não permite jogar depois de desistir", () => {
+  const { manager, rejectedMoves } = createHarness();
+
+  const room = manager.createGame({ mode: "pvp" });
+  manager.joinGame(room.id, "white-player");
+  manager.joinGame(room.id, "black-player");
+  manager.resignGame(room.id, "white-player");
+  manager.makeMove({ gameId: room.id, playerId: "black-player", from: "e7", to: "e5" });
+
+  assert.equal(rejectedMoves.at(-1)?.reason, "A partida já terminou.");
+});

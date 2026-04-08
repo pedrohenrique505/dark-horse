@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Chessground } from "chessground";
 import type { Api } from "chessground/api";
 import type { Config } from "chessground/config";
@@ -8,7 +9,7 @@ import type * as cg from "chessground/types";
 import { io, type Socket } from "socket.io-client";
 import { getLegalDests, getPromotion } from "@/lib/chess";
 import { getOrCreatePlayerId } from "@/lib/player";
-import type { ClientToServerEvents, GameState, PlayerColor, ServerToClientEvents } from "@/types/game";
+import type { ClientToServerEvents, GameResult, GameState, PlayerColor, ServerToClientEvents } from "@/types/game";
 
 type Props = {
   gameId: string;
@@ -20,6 +21,7 @@ type PendingPremove = {
 };
 
 export function ChessBoard({ gameId }: Props) {
+  const router = useRouter();
   const boardRef = useRef<HTMLDivElement | null>(null);
   const chessgroundRef = useRef<Api | null>(null);
   const socketRef = useRef<Socket<ServerToClientEvents, ClientToServerEvents> | null>(null);
@@ -27,6 +29,7 @@ export function ChessBoard({ gameId }: Props) {
   const [state, setState] = useState<GameState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pendingPremove, setPendingPremove] = useState<PendingPremove | null>(null);
+  const [isResultModalOpen, setIsResultModalOpen] = useState(false);
 
   const shareUrl = useMemo(() => {
     if (typeof window === "undefined") return "";
@@ -34,8 +37,31 @@ export function ChessBoard({ gameId }: Props) {
   }, [gameId]);
 
   const canInteractWithBoard = Boolean(
-    state && state.playerColor !== "spectator" && !(state.mode === "vs-bot" && state.isBotThinking),
+    state &&
+      state.playerColor !== "spectator" &&
+      !state.isGameOver &&
+      !(state.mode === "vs-bot" && state.isBotThinking),
   );
+
+  const currentPlayerId = playerIdRef.current;
+  const canOfferDraw = Boolean(
+    state &&
+      currentPlayerId &&
+      state.mode === "pvp" &&
+      state.playerColor !== "spectator" &&
+      !state.isGameOver &&
+      !state.drawOfferFrom,
+  );
+  const canRespondToDraw = Boolean(
+    state &&
+      currentPlayerId &&
+      state.mode === "pvp" &&
+      state.playerColor !== "spectator" &&
+      !state.isGameOver &&
+      state.drawOfferFrom &&
+      state.drawOfferFrom !== state.playerColor,
+  );
+  const resultKey = state?.result ? `${state.result.reason}-${state.result.winner ?? "draw"}` : null;
 
   useEffect(() => {
     const playerId = getOrCreatePlayerId();
@@ -159,8 +185,42 @@ export function ChessBoard({ gameId }: Props) {
     return () => chessgroundRef.current?.destroy();
   }, []);
 
+  useEffect(() => {
+    if (state?.isGameOver && state.result) {
+      setIsResultModalOpen(true);
+    }
+  }, [resultKey, state?.isGameOver]);
+
   async function copyLink() {
     await navigator.clipboard.writeText(shareUrl);
+  }
+
+  function goHome() {
+    router.push("/");
+  }
+
+  function resignGame() {
+    const socket = socketRef.current;
+    const playerId = playerIdRef.current;
+    if (!socket || !playerId) return;
+
+    socket.emit("resign", { gameId, playerId });
+  }
+
+  function offerDraw() {
+    const socket = socketRef.current;
+    const playerId = playerIdRef.current;
+    if (!socket || !playerId) return;
+
+    socket.emit("offer-draw", { gameId, playerId });
+  }
+
+  function respondToDrawOffer(accept: boolean) {
+    const socket = socketRef.current;
+    const playerId = playerIdRef.current;
+    if (!socket || !playerId) return;
+
+    socket.emit("respond-draw-offer", { gameId, playerId, accept });
   }
 
   const status = state ? getStatusText(state) : "Conectando...";
@@ -173,9 +233,14 @@ export function ChessBoard({ gameId }: Props) {
             <p className="eyebrow">Partida {gameId}</p>
             <h1>Dark Horse Chess</h1>
           </div>
-          <button type="button" onClick={copyLink}>
-            Copiar link
-          </button>
+          <div className="header-actions">
+            <button type="button" onClick={goHome}>
+              Voltar para home
+            </button>
+            <button type="button" onClick={copyLink}>
+              Copiar link
+            </button>
+          </div>
         </div>
 
         <div className="status-grid">
@@ -193,6 +258,37 @@ export function ChessBoard({ gameId }: Props) {
           <p className="hint">Pre-move salvo: {pendingPremove.from} → {pendingPremove.to}</p>
         ) : null}
 
+        <div className="game-actions">
+          <button
+            type="button"
+            onClick={resignGame}
+            disabled={!state || state.playerColor === "spectator" || state.isGameOver || state.isBotThinking}
+          >
+            Desistir
+          </button>
+
+          {canOfferDraw ? (
+            <button type="button" onClick={offerDraw}>
+              Pedir empate
+            </button>
+          ) : null}
+
+          {canRespondToDraw ? (
+            <>
+              <button type="button" onClick={() => respondToDrawOffer(true)}>
+                Aceitar empate
+              </button>
+              <button type="button" onClick={() => respondToDrawOffer(false)}>
+                Recusar empate
+              </button>
+            </>
+          ) : null}
+        </div>
+
+        {state?.drawOfferFrom ? (
+          <p className="hint">{getDrawOfferText(state)}</p>
+        ) : null}
+
         <div className="board-wrap">
           <div ref={boardRef} className="chess-board" />
         </div>
@@ -201,6 +297,24 @@ export function ChessBoard({ gameId }: Props) {
           Dica: arraste ou clique nas peças para jogar. Use o botão direito no tabuleiro para desenhar setas.
         </p>
       </section>
+
+      {isResultModalOpen && state?.result ? (
+        <div className="modal-backdrop">
+          <section className="modal-card">
+            <p className="eyebrow">Fim da partida</p>
+            <h2>{getResultTitle(state.result)}</h2>
+            <p className="lead modal-text">{getResultDescription(state.result)}</p>
+            <div className="modal-actions">
+              <button type="button" onClick={goHome}>
+                Voltar para home
+              </button>
+              <button type="button" onClick={() => setIsResultModalOpen(false)}>
+                Fechar
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </main>
   );
 }
@@ -239,9 +353,44 @@ function playerSlotLabel(state: GameState | null, color: PlayerColor) {
 }
 
 function getStatusText(state: GameState) {
-  if (state.isCheckmate) return `Xeque-mate. Vitória das ${state.turn === "white" ? "pretas" : "brancas"}.`;
-  if (state.isDraw) return "Partida empatada.";
+  if (state.result) return getResultDescription(state.result);
   if (state.mode === "vs-bot" && state.isBotThinking) return "Stockfish está pensando...";
   if (state.isCheck) return `Xeque nas ${state.turn === "white" ? "brancas" : "pretas"}.`;
   return `Vez das ${state.turn === "white" ? "brancas" : "pretas"}.`;
+}
+
+function getResultTitle(result: GameResult) {
+  if (result.winner === "white") return "Vitória das brancas";
+  if (result.winner === "black") return "Vitória das pretas";
+  return "Empate";
+}
+
+function getResultDescription(result: GameResult) {
+  if (result.reason === "resign") {
+    return result.winner === "white"
+      ? "As pretas desistiram. Vitória das brancas."
+      : "As brancas desistiram. Vitória das pretas.";
+  }
+
+  if (result.reason === "agreed-draw") {
+    return "Partida empatada por acordo entre os jogadores.";
+  }
+
+  if (result.reason === "checkmate") {
+    return result.winner === "white"
+      ? "Xeque-mate. Vitória das brancas."
+      : "Xeque-mate. Vitória das pretas.";
+  }
+
+  return "Partida empatada.";
+}
+
+function getDrawOfferText(state: GameState) {
+  if (!state.drawOfferFrom) return "";
+
+  if (state.playerColor === state.drawOfferFrom) {
+    return "Você ofereceu empate. Aguardando resposta do outro jogador.";
+  }
+
+  return `As ${roleLabel(state.drawOfferFrom)} ofereceram empate.`;
 }
